@@ -133,7 +133,7 @@ function extractDefinition(
   if (functionTypes.includes(node.type)) {
     const name = extractName(node, language)
     if (name) {
-      return { name, line: node.startPosition.row + 1, type: 'function' }
+      return { name, line: node.startPosition.row + 1, type: 'function', exported }
     }
   }
 
@@ -141,7 +141,7 @@ function extractDefinition(
   if (classTypes.includes(node.type)) {
     const name = extractName(node, language)
     if (name) {
-      return { name, line: node.startPosition.row + 1, type: 'class' }
+      return { name, line: node.startPosition.row + 1, type: 'class', exported }
     }
   }
 
@@ -149,7 +149,7 @@ function extractDefinition(
   if (interfaceTypes.includes(node.type)) {
     const name = extractName(node, language)
     if (name) {
-      return { name, line: node.startPosition.row + 1, type: 'interface' }
+      return { name, line: node.startPosition.row + 1, type: 'interface', exported }
     }
   }
 
@@ -157,7 +157,7 @@ function extractDefinition(
   if (typeTypes.includes(node.type)) {
     const name = extractName(node, language)
     if (name) {
-      return { name, line: node.startPosition.row + 1, type: 'type' }
+      return { name, line: node.startPosition.row + 1, type: 'type', exported }
     }
   }
 
@@ -165,7 +165,7 @@ function extractDefinition(
   if (enumTypes.includes(node.type)) {
     const name = extractName(node, language)
     if (name) {
-      return { name, line: node.startPosition.row + 1, type: 'enum' }
+      return { name, line: node.startPosition.row + 1, type: 'enum', exported }
     }
   }
 
@@ -176,7 +176,7 @@ function extractDefinition(
       // Check for arrow functions assigned to const (these are always included)
       const arrowFn = extractArrowFunction(node)
       if (arrowFn) {
-        return { name: arrowFn.name, line: arrowFn.line, type: 'function' }
+        return { name: arrowFn.name, line: arrowFn.line, type: 'function', exported: false }
       }
       return null
     }
@@ -184,13 +184,13 @@ function extractDefinition(
     // Check for arrow functions first
     const arrowFn = extractArrowFunction(node)
     if (arrowFn) {
-      return { name: arrowFn.name, line: arrowFn.line, type: 'function' }
+      return { name: arrowFn.name, line: arrowFn.line, type: 'function', exported }
     }
     
     // Otherwise it's a constant
     const name = extractConstName(node, language)
     if (name) {
-      return { name, line: node.startPosition.row + 1, type: 'const' }
+      return { name, line: node.startPosition.row + 1, type: 'const', exported }
     }
   }
 
@@ -227,6 +227,7 @@ function extractMultipleDeclarations(
               name: nameNode.text,
               line: child.startPosition.row + 1,
               type,
+              exported,
             })
           }
         }

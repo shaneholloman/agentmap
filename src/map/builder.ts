@@ -19,6 +19,17 @@ export function buildMap(results: FileResult[], rootName: string): MapNode {
 }
 
 /**
+ * Format a definition as a string like "line 13, function, exported"
+ */
+function formatDefinition(def: { line: number; type: string; exported: boolean }): string {
+  const parts = [`line ${def.line}`, def.type]
+  if (def.exported) {
+    parts.push('exported')
+  }
+  return parts.join(', ')
+}
+
+/**
  * Insert a file result into the map at its path location
  */
 function insertFile(root: MapNode, result: FileResult): void {
@@ -34,18 +45,18 @@ function insertFile(root: MapNode, result: FileResult): void {
     current = current[dir] as MapNode
   }
 
-  // Create file entry
+  // Create file entry - description first, then defs
   const filename = parts[parts.length - 1]
   const entry: FileEntry = {}
 
   if (result.description) {
-    entry.desc = result.description
+    entry.description = result.description
   }
 
   if (result.definitions.length > 0) {
     entry.defs = {}
     for (const def of result.definitions) {
-      entry.defs[def.name] = def.line
+      entry.defs[def.name] = formatDefinition(def)
     }
   }
 

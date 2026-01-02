@@ -1,0 +1,93 @@
+mappamundi:
+  src:
+    cli.ts:
+      description: CLI entrypoint for generating codebase maps.
+    extract:
+      definitions.ts:
+        description: Extract top-level definitions using tree-sitter.
+        defs:
+          extractArrowFunction: line 380, function
+          extractConstName: line 286, function
+          extractDefinition: line 120, function
+          extractDefinitions: line 82, function, exported
+          extractGoName: line 359, function
+          extractJSName: line 315, function
+          extractMultipleDeclarations: line 203, function
+          extractName: line 260, function
+          extractPythonName: line 329, function
+          extractRustName: line 339, function
+          findChild: line 404, function
+          isExported: line 75, function
+          unwrapExport: line 244, function
+      marker.ts:
+        description: Extract @agentmap marker and description from file header.
+        defs:
+          extractDescription: line 83, function
+          extractMarker: line 28, function, exported
+          extractTextAfterMarker: line 137, function
+          isCommentLine: line 65, function
+          readHead: line 13, function
+          stripCommentPrefix: line 147, function
+    index.ts:
+      description: Library exports for programmatic usage.
+      defs:
+        generateMap: line 24, function, exported
+        generateMapYaml: line 34, function, exported
+    map:
+      builder.ts:
+        description: Build the nested map object from file results.
+        defs:
+          buildMap: line 10, function, exported
+          formatDefinition: line 24, function
+          getRootName: line 69, function, exported
+          insertFile: line 35, function
+      yaml.ts:
+        description: Format map object to YAML string.
+        defs:
+          sortKeys: line 10, function
+          toYaml: line 24, function, exported
+    opencode:
+      plugin.ts:
+        description: OpenCode plugin that injects codebase map into system prompt.
+        defs:
+          AgentMapPlugin: line 7, function, exported
+    parser:
+      index.ts:
+        description: Tree-sitter parser initialization and code parsing.
+        defs:
+          getParser: line 23, function
+          initParser: line 14, function, exported
+          parseCode: line 33, function, exported
+          resetParser: line 46, function, exported
+      languages.ts:
+        description: Language detection and grammar loading for tree-sitter.
+        defs:
+          clearGrammarCache: line 88, function, exported
+          detectLanguage: line 31, function, exported
+          ensureParserInit: line 63, function
+          getGrammarPath: line 39, function
+          LANGUAGE_EXTENSIONS: line 13, const, exported
+          loadGrammar: line 73, function, exported
+    scanner.ts:
+      description: Scan directory for files with @agentmap marker.
+      defs:
+        getGitFiles: line 44, function
+        getGlobFiles: line 75, function
+        isGitRepo: line 30, function
+        isSupportedFile: line 22, function
+        processFile: line 132, function
+        scanDirectory: line 88, function, exported
+    types.ts:
+      description: Core type definitions for the codebase map.
+      defs:
+        DefEntry: line 19, interface, exported
+        Definition: line 60, interface, exported
+        DefinitionType: line 49, type, exported
+        FileEntry: line 26, interface, exported
+        FileResult: line 70, interface, exported
+        GenerateOptions: line 79, interface, exported
+        Language: line 9, type, exported
+        MapNode: line 34, interface, exported
+        MarkerResult: line 41, interface, exported
+        SyntaxNode: line 89, type, exported
+        SyntaxTree: line 90, type, exported

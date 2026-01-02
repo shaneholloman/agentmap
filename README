@@ -124,6 +124,35 @@ my-project:
 | Rust       | .rs                       |
 | Go         | .go                       |
 
+## OpenCode Plugin
+
+agentmap includes a plugin for [OpenCode](https://opencode.ai) that automatically injects the codebase map into the system prompt at session start.
+
+Add the plugin to your `opencode.json`:
+
+```json
+{
+  "plugin": ["agentmap/opencode"]
+}
+```
+
+The plugin will scan your project for files with `@agentmap` markers and inject the map into the system prompt wrapped in `<agentmap>` tags:
+
+```xml
+<agentmap>
+These are some of the files in the repo with their descriptions and definition locations:
+
+my-project:
+  src:
+    main.ts:
+      desc: CLI entrypoint.
+      defs:
+        main: 12
+</agentmap>
+```
+
+This gives the AI agent immediate context about your codebase structure without needing to explore files first.
+
 ## License
 
 MIT

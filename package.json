@@ -1,6 +1,6 @@
 {
   "name": "agentmap",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "Generate a YAML map of your codebase for AI agent context",
   "type": "module",
   "repository": {
@@ -19,7 +19,11 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "default": "./dist/index.js"
+    },
+    "./opencode": {
+      "types": "./dist/opencode/plugin.d.ts",
+      "default": "./dist/opencode/plugin.js"
     }
   },
   "files": [
@@ -44,6 +48,7 @@
     "web-tree-sitter": "^0.24.4"
   },
   "devDependencies": {
+    "@opencode-ai/plugin": "^1.0.224",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^22.10.2",
     "@types/picomatch": "^3.0.1",

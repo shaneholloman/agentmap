@@ -14,17 +14,17 @@ export type Language =
   | 'go'
 
 /**
- * Symbol definitions mapping: name -> 1-based line number
+ * Symbol definitions mapping: name -> description string
  */
 export interface DefEntry {
-  [symbolName: string]: number
+  [symbolName: string]: string
 }
 
 /**
  * A file entry in the map
  */
 export interface FileEntry {
-  desc?: string
+  description?: string
   defs?: DefEntry
 }
 
@@ -61,6 +61,7 @@ export interface Definition {
   name: string
   line: number  // 1-based
   type: DefinitionType
+  exported: boolean
 }
 
 /**
