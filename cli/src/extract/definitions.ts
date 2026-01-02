@@ -6,7 +6,7 @@ import type { Definition, DefinitionType, Language, SyntaxNode } from '../types.
 /**
  * Minimum body lines for a function/class to be included in defs
  */
-const MIN_BODY_LINES = 7
+const MIN_BODY_LINES = 5
 
 /**
  * Node types that represent functions per language

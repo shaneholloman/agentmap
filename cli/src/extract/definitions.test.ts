@@ -212,7 +212,17 @@ describe('TypeScript', () => {
   return response
 }`
     const defs = await getDefinitions(code, 'typescript')
-    expect(defs).toMatchInlineSnapshot(`[]`)
+    expect(defs).toMatchInlineSnapshot(`
+      [
+        {
+          "endLine": 7,
+          "exported": true,
+          "line": 1,
+          "name": "fetchData",
+          "type": "function",
+        },
+      ]
+    `)
   })
 
   test('exported large function', async () => {
@@ -682,7 +692,17 @@ describe('Python', () => {
             processed = process(validated)
             return processed`
     const defs = await getDefinitions(code, 'python')
-    expect(defs).toMatchInlineSnapshot(`[]`)
+    expect(defs).toMatchInlineSnapshot(`
+      [
+        {
+          "endLine": 7,
+          "exported": false,
+          "line": 1,
+          "name": "fetch_data",
+          "type": "function",
+        },
+      ]
+    `)
   })
 
   test('decorated function', async () => {
@@ -1250,7 +1270,17 @@ import * as baz from 'qux'`
   console.log(a, b, c, d)
 }`
     const defs = await getDefinitions(code, 'typescript')
-    expect(defs).toMatchInlineSnapshot(`[]`)
+    expect(defs).toMatchInlineSnapshot(`
+      [
+        {
+          "endLine": 7,
+          "exported": false,
+          "line": 1,
+          "name": "sevenLines",
+          "type": "function",
+        },
+      ]
+    `)
   })
 
   test('function with multiline signature', async () => {
@@ -1377,7 +1407,17 @@ function process(input: string | number): string | number {
   return input * 2
 }`
     const defs = await getDefinitions(code, 'typescript')
-    expect(defs).toMatchInlineSnapshot(`[]`)
+    expect(defs).toMatchInlineSnapshot(`
+      [
+        {
+          "endLine": 8,
+          "exported": false,
+          "line": 3,
+          "name": "process",
+          "type": "function",
+        },
+      ]
+    `)
   })
 
   test('namespace', async () => {
