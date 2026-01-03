@@ -125,7 +125,15 @@ export const AgentMapPlugin: Plugin = async ({ directory }) => {
 Tree of the most important files in the repo, showing descriptions and definitions:
 
 ${cachedYaml}
-</agentmap>`)
+</agentmap>
+
+<agentmap-instructions>
+When creating new files, add a brief description comment at the top explaining the file's purpose. This makes the file discoverable in the agentmap.
+
+When making significant changes to a file's purpose or responsibilities, update its header comment to reflect the changes.
+
+These descriptions appear in the agentmap XML at the start of every agent session.
+</agentmap-instructions>`)
       } catch (err) {
         console.error('[agentmap] Failed to generate map:', err)
       }
