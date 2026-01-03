@@ -1,6 +1,6 @@
 {
   "name": "agentmap",
-  "version": "0.4.2",
+  "version": "0.5.0",
   "description": "Generate a YAML map of your codebase for AI agent context",
   "type": "module",
   "repository": {

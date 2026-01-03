@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.0
+
+- Add README.md support: include README files in the map with their content as description
+- README files appear first in each folder's listing
+- Case-insensitive matching for `readme`, `README`, `readme.md`, `README.md`
+- Use `marked` lexer to parse markdown AST and extract plain text
+- Skip images, HTML comments, and badges from markdown content
+- Truncate descriptions to 25 lines with `... and N more lines` indicator
+- Graceful fallback to raw content if markdown parsing fails
+
 ## 0.4.2
 
 - Improve `prompt` command for monorepos: detect workspaces/packages and use Task tool for concurrent processing
