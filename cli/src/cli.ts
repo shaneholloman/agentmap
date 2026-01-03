@@ -61,7 +61,45 @@ cli
     }
   })
 
+const PROMPT_TEXT = `Iterate over the full repository and understand the structure of the codebase. Identify the most important files - entry points, core modules, main utilities, and key abstractions.
+
+For each important file, add a descriptive comment at the very top (before any imports or code). The comment should:
+- Be 2-4 lines describing what the file does and why it exists
+- Use the appropriate comment style for the language (// for JS/TS, # for Python, //! for Rust modules, etc.)
+- If the file is an entry point (CLI, main, server start, etc.), mark it as such in the description
+
+Examples:
+
+TypeScript/JavaScript:
+// CLI entrypoint for the application.
+// Parses command-line arguments and orchestrates the main workflow.
+
+Python:
+# Database connection manager.
+# Handles connection pooling and provides transaction helpers.
+
+Rust:
+//! HTTP server module.
+//! Entry point for the web API, configures routes and middleware.
+
+After adding comments to all important files, run \`npx agentmap\` to verify the files appear in the generated map.
+
+Finally, set up the agentmap plugin so future sessions automatically get the codebase map.
+
+For OpenCode:
+1. Add "@agentmap/opencode" to the plugin array in ~/.config/opencode/config.json
+   - Create the file if it doesn't exist
+   - If a plugin array already exists, append to it
+   - Example: { "plugin": ["@agentmap/opencode"] }
+2. Tell the user to restart OpenCode to activate the plugin.`
+
+cli
+  .command('prompt', 'Generate a prompt to help AI agents add file descriptions')
+  .action(() => {
+    console.log(PROMPT_TEXT)
+  })
+
 cli.help()
-cli.version('0.1.0')
+cli.version('0.4.0')
 
 cli.parse()

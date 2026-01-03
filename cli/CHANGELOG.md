@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.0
+
+- Add `prompt` command to generate AI instructions for adding file descriptions
+- Prompt instructs agent to analyze repo, add header comments to important files, and set up OpenCode plugin
+
 ## 0.3.0
 
 - Add `--diff` flag to show git diff status for definitions

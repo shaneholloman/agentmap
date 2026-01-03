@@ -13,6 +13,23 @@ A compact, YAML-based inventory of your codebase, intended to be prepended to a 
 npm install agentmap
 ```
 
+**Quick Setup**
+
+The fastest way to get started is to let an AI agent add file descriptions for you:
+
+```bash
+npx agentmap prompt | opencode
+```
+
+This generates a prompt that instructs the agent to:
+1. Analyze your repository structure
+2. Identify the most important files (entry points, core modules, utilities)
+3. Add descriptive comments at the top of each file
+4. Mark entry points as such
+5. Set up the `@agentmap/opencode` plugin in `~/.config/opencode/config.json`
+
+These comments make your files discoverable in the agentmap. The plugin automatically injects the map into future sessions.
+
 **CLI Usage**
 
 ```bash
@@ -34,8 +51,16 @@ npx agentmap --ignore "dist/**" --ignore "**/test/**"
 ```
 -o, --output <file>     Write output to file (default: stdout)
 -i, --ignore <pattern>  Ignore pattern (can be repeated)
+-d, --diff              Include git diff status for definitions
 -h, --help              Show help
 -v, --version           Show version
+```
+
+**Commands**
+
+```bash
+# Generate a prompt to help AI agents add file descriptions
+npx agentmap prompt
 ```
 
 **Library Usage**
