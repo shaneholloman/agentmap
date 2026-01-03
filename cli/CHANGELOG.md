@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.1
+
+- Simplify definition output to show only start line instead of line range
+
 ## 0.4.0
 
 - Add `prompt` command to generate AI instructions for adding file descriptions

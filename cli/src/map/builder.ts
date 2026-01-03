@@ -32,13 +32,10 @@ function formatFileDiff(diff: FileDiffStats): string {
 }
 
 /**
- * Format a definition as a string like "line 13-25, function, exported, updated (+5-2)"
+ * Format a definition as a string like "line 13, function, exported, updated (+5-2)"
  */
 function formatDefinition(def: Definition): string {
-  // Line range - show single line or range
-  const lineStr = def.line === def.endLine 
-    ? `line ${def.line}` 
-    : `line ${def.line}-${def.endLine}`
+  const lineStr = `line ${def.line}`
   
   const parts = [lineStr, def.type]
   
