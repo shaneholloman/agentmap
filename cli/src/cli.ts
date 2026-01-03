@@ -61,12 +61,21 @@ cli
     }
   })
 
-const PROMPT_TEXT = `Iterate over the full repository and understand the structure of the codebase. Identify the most important files - entry points, core modules, main utilities, and key abstractions.
+const PROMPT_TEXT = `Analyze the repository structure first. Look for clear separation of concerns:
+- Monorepo workspaces (package.json workspaces, pnpm-workspace.yaml, etc.)
+- Separate packages or modules
+- Different languages or technology stacks
+- Independent services or apps
+
+If you find well-separated packages, use the Task tool to process them concurrently - assign each package/workspace to a separate task agent for speed.
+
+For each package/area, identify the most important files - entry points, core modules, main utilities, and key abstractions.
 
 For each important file, add a descriptive comment at the very top (before any imports or code). The comment should:
 - Be 2-4 lines describing what the file does and why it exists
 - Use the appropriate comment style for the language (// for JS/TS, # for Python, //! for Rust modules, etc.)
 - If the file is an entry point (CLI, main, server start, etc.), mark it as such in the description
+- If the file already has a top comment, review and update it to be accurate and descriptive - don't skip it
 
 Examples:
 
@@ -82,7 +91,9 @@ Rust:
 //! HTTP server module.
 //! Entry point for the web API, configures routes and middleware.
 
-After adding comments to all important files, run \`npx agentmap\` to verify the files appear in the generated map.
+After adding comments to all important files, run \`npx -y agentmap\` to verify the files appear in the generated map.
+
+You can run this prompt again anytime to keep file descriptions up to date as the codebase evolves.
 
 Finally, set up the agentmap plugin so future sessions automatically get the codebase map.
 

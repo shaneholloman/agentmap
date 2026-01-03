@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.2
+
+- Improve `prompt` command for monorepos: detect workspaces/packages and use Task tool for concurrent processing
+- Update existing file comments instead of skipping them
+- Add note about re-running prompt to keep descriptions up to date
+- Update README with better OpenCode integration example using `-p` flag
+
 ## 0.4.1
 
 - Simplify definition output to show only start line instead of line range

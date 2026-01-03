@@ -18,7 +18,7 @@ npm install agentmap
 The fastest way to get started is to let an AI agent add file descriptions for you:
 
 ```bash
-npx agentmap prompt | opencode
+opencode -p "$(npx -y agentmap prompt)"
 ```
 
 This generates a prompt that instructs the agent to:
