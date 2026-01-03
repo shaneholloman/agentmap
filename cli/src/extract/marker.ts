@@ -5,8 +5,27 @@ import { open } from 'fs/promises'
 import { parseCode, detectLanguage } from '../parser/index.js'
 import type { MarkerResult, Language, SyntaxNode } from '../types.js'
 
+export { extractMarkdownDescription } from './markdown.js'
+
 const MAX_LINES = 50
-const MAX_DESC_LINES = 20
+const MAX_DESC_LINES = 25
+
+/**
+ * Truncate lines to MAX_DESC_LINES, adding indicator if truncated
+ */
+function truncateDescription(lines: string[]): string {
+  const trimmed = lines.join('\n').trim()
+  const trimmedLines = trimmed.split('\n')
+  
+  if (trimmedLines.length <= MAX_DESC_LINES) {
+    return trimmed
+  }
+  
+  const truncated = trimmedLines.slice(0, MAX_DESC_LINES)
+  const remaining = trimmedLines.length - MAX_DESC_LINES
+  truncated.push(`... and ${remaining} more lines`)
+  return truncated.join('\n')
+}
 
 /**
  * Read the first N lines of a file
@@ -146,14 +165,9 @@ function extractConsecutiveComments(
     if (text !== null) {
       lines.push(...text.split('\n'))
     }
-
-    // Limit description length
-    if (lines.length >= MAX_DESC_LINES) {
-      break
-    }
   }
 
-  return lines.slice(0, MAX_DESC_LINES).join('\n').trim()
+  return truncateDescription(lines)
 }
 
 /**
@@ -249,7 +263,7 @@ function extractPythonDocstring(node: SyntaxNode): string {
   const content = findChild(node, 'string_content')
   if (content) {
     const lines = content.text.trim().split('\n')
-    return lines.slice(0, MAX_DESC_LINES).join('\n').trim()
+    return truncateDescription(lines)
   }
 
   // Fallback: extract from full text
@@ -263,7 +277,7 @@ function extractPythonDocstring(node: SyntaxNode): string {
   }
 
   const lines = text.trim().split('\n')
-  return lines.slice(0, MAX_DESC_LINES).join('\n').trim()
+  return truncateDescription(lines)
 }
 
 /**

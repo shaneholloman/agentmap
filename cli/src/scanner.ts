@@ -5,7 +5,7 @@ import fg from 'fast-glob'
 import picomatch from 'picomatch'
 import { readFile } from 'fs/promises'
 import { join, normalize } from 'path'
-import { extractMarker } from './extract/marker.js'
+import { extractMarker, extractMarkdownDescription } from './extract/marker.js'
 import { extractDefinitions } from './extract/definitions.js'
 import { getAllDiffData, applyDiffToDefinitions } from './extract/git-status.js'
 import { parseCode, detectLanguage, LANGUAGE_EXTENSIONS } from './parser/index.js'
@@ -22,6 +22,14 @@ const SUPPORTED_EXTENSIONS = new Set(Object.keys(LANGUAGE_EXTENSIONS))
 function isSupportedFile(filepath: string): boolean {
   const ext = filepath.slice(filepath.lastIndexOf('.'))
   return SUPPORTED_EXTENSIONS.has(ext)
+}
+
+/**
+ * Check if a file is a README file (case-insensitive, with or without .md extension)
+ */
+function isReadmeFile(filepath: string): boolean {
+  const filename = filepath.split(/[/\\]/).pop()?.toLowerCase() ?? ''
+  return filename === 'readme.md' || filename === 'readme'
 }
 
 /**
@@ -99,8 +107,8 @@ export async function scanDirectory(options: GenerateOptions = {}): Promise<File
     files = await getGlobFiles(dir)
   }
 
-  // Filter by supported extensions
-  files = files.filter(isSupportedFile)
+  // Filter by supported extensions or README files
+  files = files.filter(f => isSupportedFile(f) || isReadmeFile(f))
 
   // Filter by ignore patterns
   if (ignorePatterns.length > 0) {
@@ -157,6 +165,20 @@ async function processFile(
   fileDiff?: FileDiff,
   fileStats?: FileDiffStats
 ): Promise<FileResult | null> {
+  // Handle README.md files specially
+  if (isReadmeFile(relativePath)) {
+    const description = await extractMarkdownDescription(fullPath)
+    if (!description) {
+      return null
+    }
+    return {
+      relativePath,
+      description,
+      definitions: [],
+      diff: fileStats,
+    }
+  }
+
   // Check for marker first (only reads first 30KB)
   const marker = await extractMarker(fullPath)
   if (!marker.found) {

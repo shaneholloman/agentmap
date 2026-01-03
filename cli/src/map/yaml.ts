@@ -4,7 +4,15 @@ import yaml from 'js-yaml'
 import type { MapNode } from '../types.js'
 
 /**
- * Custom key sorter: description first, then diff, then defs, then alphabetical
+ * Check if a key is a README file (case-insensitive)
+ */
+function isReadme(key: string): boolean {
+  const lower = key.toLowerCase()
+  return lower === 'readme.md' || lower === 'readme'
+}
+
+/**
+ * Custom key sorter: description first, then diff, then defs, then README files, then alphabetical
  */
 function sortKeys(a: string, b: string): number {
   // description always first
@@ -16,6 +24,11 @@ function sortKeys(a: string, b: string): number {
   // defs third
   if (a === 'defs') return -1
   if (b === 'defs') return 1
+  // README files come before other files
+  const aIsReadme = isReadme(a)
+  const bIsReadme = isReadme(b)
+  if (aIsReadme && !bIsReadme) return -1
+  if (bIsReadme && !aIsReadme) return 1
   // alphabetical for everything else
   return a.localeCompare(b)
 }
