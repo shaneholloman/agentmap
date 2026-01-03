@@ -71,11 +71,12 @@ If you find well-separated packages, use the Task tool to process them concurren
 
 For each package/area, identify the most important files - entry points, core modules, main utilities, and key abstractions.
 
-For each important file, add a descriptive comment at the very top (before any imports or code). The comment should:
+For each important file, add a descriptive comment at the top (before any imports or code). The comment should:
 - Be 2-4 lines describing what the file does and why it exists
 - Use the appropriate comment style for the language (// for JS/TS, # for Python, //! for Rust modules, etc.)
 - If the file is an entry point (CLI, main, server start, etc.), mark it as such in the description
 - If the file already has a top comment, review and update it to be accurate and descriptive - don't skip it
+- If the file has a shebang (#!/...), keep it as the first line and add the description comment immediately after
 
 Examples:
 
@@ -90,6 +91,11 @@ Python:
 Rust:
 //! HTTP server module.
 //! Entry point for the web API, configures routes and middleware.
+
+With shebang (shell scripts, node CLI, etc.):
+#!/usr/bin/env node
+// CLI entrypoint for the build tool.
+// Handles argument parsing and runs the build pipeline.
 
 After adding comments to all important files, run \`npx -y agentmap\` to verify the files appear in the generated map.
 
