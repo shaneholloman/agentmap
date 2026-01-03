@@ -24,7 +24,8 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc"
+    "build": "tsc",
+    "prepublishOnly": "bun run build"
   },
   "dependencies": {
     "agentmap": "workspace:*"
