@@ -59,6 +59,9 @@ export interface MarkerResult {
 export type DefinitionType = 
   | 'function' 
   | 'class' 
+  | 'struct'
+  | 'union'
+  | 'trait'
   | 'type' 
   | 'interface' 
   | 'const' 

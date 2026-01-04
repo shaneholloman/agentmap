@@ -57,6 +57,8 @@ function getGrammarPath(language: Language): string {
       return require.resolve('tree-sitter-go/tree-sitter-go.wasm')
     case 'zig':
       return require.resolve('@tree-sitter-grammars/tree-sitter-zig/tree-sitter-zig.wasm')
+    case 'cpp':
+      return require.resolve('tree-sitter-cpp/tree-sitter-cpp.wasm')
   }
 }
 

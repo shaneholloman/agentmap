@@ -808,7 +808,7 @@ describe('Rust', () => {
     "exported": false,
     "line": 1,
     "name": "Config",
-    "type": "class",
+    "type": "struct",
   },
 ]
 `)
@@ -839,17 +839,7 @@ describe('Rust', () => {
     }
 }`
     const defs = await getDefinitions(code, 'rust')
-    expect(defs).toMatchInlineSnapshot(`
-[
-  {
-    "endLine": 14,
-    "exported": false,
-    "line": 1,
-    "name": "Calculator",
-    "type": "class",
-  },
-]
-`)
+    expect(defs).toMatchInlineSnapshot(`[]`)
   })
 
   test('large trait', async () => {
@@ -871,7 +861,7 @@ describe('Rust', () => {
     "exported": false,
     "line": 1,
     "name": "Processor",
-    "type": "class",
+    "type": "trait",
   },
 ]
 `)
@@ -1588,7 +1578,7 @@ describe('Zig', () => {
     "exported": true,
     "line": 1,
     "name": "Config",
-    "type": "class",
+    "type": "struct",
   },
 ]
 `)
@@ -1628,7 +1618,7 @@ describe('Zig', () => {
     "exported": true,
     "line": 1,
     "name": "Result",
-    "type": "class",
+    "type": "union",
   },
 ]
 `)

@@ -17,6 +17,7 @@ const FUNCTION_TYPES: Record<Language, string[]> = {
   rust: ['function_item'],
   go: ['function_declaration', 'method_declaration'],
   zig: ['function_declaration', 'test_declaration'],
+  cpp: ['function_definition'],
 }
 
 /**
@@ -26,9 +27,36 @@ const CLASS_TYPES: Record<Language, string[]> = {
   typescript: ['class_declaration', 'abstract_class_declaration'],
   javascript: ['class_declaration'],
   python: ['class_definition'],
-  rust: ['struct_item', 'impl_item', 'trait_item'],
-  go: ['type_declaration'],
-  zig: [],  // Handled via variable_declaration with struct/union value
+  rust: [],  // Rust has structs/traits, not classes
+  go: [],    // Go has structs, not classes
+  zig: [],   // Zig has structs/unions, not classes
+  cpp: ['class_specifier'],
+}
+
+/**
+ * Node types that represent structs per language
+ */
+const STRUCT_TYPES: Record<Language, string[]> = {
+  typescript: [],
+  javascript: [],
+  python: [],
+  rust: ['struct_item'],
+  go: [],
+  zig: [],  // Handled via variable_declaration with struct value
+  cpp: ['struct_specifier'],
+}
+
+/**
+ * Node types that represent traits per language
+ */
+const TRAIT_TYPES: Record<Language, string[]> = {
+  typescript: [],
+  javascript: [],
+  python: [],
+  rust: ['trait_item'],
+  go: [],
+  zig: [],
+  cpp: [],
 }
 
 /**
@@ -38,9 +66,10 @@ const INTERFACE_TYPES: Record<Language, string[]> = {
   typescript: ['interface_declaration'],
   javascript: [],
   python: [],
-  rust: ['trait_item'],
+  rust: [],  // Rust traits handled in TRAIT_TYPES
   go: [],
   zig: [],
+  cpp: [],
 }
 
 /**
@@ -53,6 +82,7 @@ const TYPE_TYPES: Record<Language, string[]> = {
   rust: ['type_item'],
   go: ['type_declaration'],
   zig: [],
+  cpp: ['type_definition', 'alias_declaration'],
 }
 
 /**
@@ -65,6 +95,7 @@ const ENUM_TYPES: Record<Language, string[]> = {
   rust: ['enum_item'],
   go: [],
   zig: [],  // Handled via variable_declaration with enum value
+  cpp: ['enum_specifier'],
 }
 
 /**
@@ -77,6 +108,7 @@ const CONST_TYPES: Record<Language, string[]> = {
   rust: ['const_item', 'static_item'],
   go: ['const_declaration', 'var_declaration'],
   zig: ['variable_declaration'],
+  cpp: ['declaration'],
 }
 
 /**
@@ -118,8 +150,11 @@ function isZigConst(node: SyntaxNode): boolean {
 function getZigTypeDeclaration(node: SyntaxNode): DefinitionType | null {
   for (let i = 0; i < node.childCount; i++) {
     const child = node.child(i)
-    if (child?.type === 'struct_declaration' || child?.type === 'union_declaration') {
-      return 'class'
+    if (child?.type === 'struct_declaration') {
+      return 'struct'
+    }
+    if (child?.type === 'union_declaration') {
+      return 'union'
     }
     if (child?.type === 'enum_declaration') {
       return 'enum'
@@ -205,6 +240,36 @@ function extractDefinition(
         line: node.startPosition.row + 1, 
         endLine: node.endPosition.row + 1,
         type: 'class', 
+        exported 
+      }
+    }
+  }
+
+  // Structs
+  const structTypes = STRUCT_TYPES[language]
+  if (structTypes.includes(node.type)) {
+    const name = extractName(node, language)
+    if (name && getBodyLineCount(node) > MIN_BODY_LINES) {
+      return { 
+        name, 
+        line: node.startPosition.row + 1, 
+        endLine: node.endPosition.row + 1,
+        type: 'struct', 
+        exported 
+      }
+    }
+  }
+
+  // Traits
+  const traitTypes = TRAIT_TYPES[language]
+  if (traitTypes.includes(node.type)) {
+    const name = extractName(node, language)
+    if (name && getBodyLineCount(node) > MIN_BODY_LINES) {
+      return { 
+        name, 
+        line: node.startPosition.row + 1, 
+        endLine: node.endPosition.row + 1,
+        type: 'trait', 
         exported 
       }
     }
@@ -404,6 +469,8 @@ function extractName(node: SyntaxNode, language: Language): string | null {
       return extractGoName(node)
     case 'zig':
       return extractZigName(node)
+    case 'cpp':
+      return extractCppName(node)
   }
 
   return null
@@ -441,6 +508,10 @@ function extractConstName(node: SyntaxNode, language: Language): string | null {
   if (language === 'zig') {
     // In Zig, identifier comes after const/var keyword
     return extractZigName(node)
+  }
+
+  if (language === 'cpp') {
+    return extractCppName(node)
   }
 
   return null
@@ -532,6 +603,85 @@ function extractZigName(node: SyntaxNode): string | null {
   for (let i = 0; i < node.childCount; i++) {
     const child = node.child(i)
     if (child?.type === 'identifier') {
+      return child.text
+    }
+  }
+  return null
+}
+
+function extractCppName(node: SyntaxNode): string | null {
+  // For function_definition, look for declarator -> identifier
+  if (node.type === 'function_definition') {
+    const declarator = node.childForFieldName('declarator')
+    if (declarator) {
+      // Could be function_declarator or pointer_declarator wrapping it
+      const funcDecl = declarator.type === 'function_declarator' 
+        ? declarator 
+        : findChild(declarator, 'function_declarator')
+      if (funcDecl) {
+        const innerDecl = funcDecl.childForFieldName('declarator')
+        if (innerDecl?.type === 'identifier') {
+          return innerDecl.text
+        }
+        // Could be qualified_identifier for namespaced functions
+        if (innerDecl?.type === 'qualified_identifier') {
+          const name = innerDecl.childForFieldName('name')
+          return name?.text ?? null
+        }
+      }
+    }
+  }
+
+  // For struct_specifier, class_specifier, enum_specifier - look for name field or type_identifier
+  if (node.type === 'struct_specifier' || node.type === 'class_specifier' || node.type === 'enum_specifier') {
+    const nameNode = node.childForFieldName('name')
+    if (nameNode) {
+      return nameNode.text
+    }
+    // Fallback: look for type_identifier child
+    for (let i = 0; i < node.childCount; i++) {
+      const child = node.child(i)
+      if (child?.type === 'type_identifier') {
+        return child.text
+      }
+    }
+  }
+
+  // For type_definition (typedef), look for the declarator
+  if (node.type === 'type_definition') {
+    const declarator = node.childForFieldName('declarator')
+    if (declarator?.type === 'type_identifier') {
+      return declarator.text
+    }
+  }
+
+  // For alias_declaration (C++ using), look for name
+  if (node.type === 'alias_declaration') {
+    const nameNode = node.childForFieldName('name')
+    return nameNode?.text ?? null
+  }
+
+  // For declaration (const/static vars), look for declarator
+  if (node.type === 'declaration') {
+    const declarator = node.childForFieldName('declarator')
+    if (declarator) {
+      if (declarator.type === 'identifier') {
+        return declarator.text
+      }
+      // Could be init_declarator
+      if (declarator.type === 'init_declarator') {
+        const innerDecl = declarator.childForFieldName('declarator')
+        if (innerDecl?.type === 'identifier') {
+          return innerDecl.text
+        }
+      }
+    }
+  }
+
+  // Generic fallback: look for identifier or type_identifier
+  for (let i = 0; i < node.childCount; i++) {
+    const child = node.child(i)
+    if (child?.type === 'identifier' || child?.type === 'type_identifier') {
       return child.text
     }
   }
