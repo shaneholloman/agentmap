@@ -1496,3 +1496,171 @@ declare const CONFIG: { url: string }`
 `)
   })
 })
+
+// ============================================================================
+// Zig Tests
+// ============================================================================
+
+describe('Zig', () => {
+  test('pub function is exported', async () => {
+    const code = `pub fn calculate(a: i32, b: i32) i32 {
+    const sum = a + b;
+    const product = a * b;
+    const diff = a - b;
+    const result = sum + product;
+    return result + diff;
+}`
+    const defs = await getDefinitions(code, 'zig')
+    expect(defs).toMatchInlineSnapshot(`
+[
+  {
+    "endLine": 7,
+    "exported": true,
+    "line": 1,
+    "name": "calculate",
+    "type": "function",
+  },
+]
+`)
+  })
+
+  test('private function not exported', async () => {
+    const code = `fn helper(x: i32) i32 {
+    const a = x * 2;
+    const b = a + 1;
+    const c = b - 3;
+    const d = c * 4;
+    return d;
+}`
+    const defs = await getDefinitions(code, 'zig')
+    expect(defs).toMatchInlineSnapshot(`
+[
+  {
+    "endLine": 7,
+    "exported": false,
+    "line": 1,
+    "name": "helper",
+    "type": "function",
+  },
+]
+`)
+  })
+
+  test('pub const is exported', async () => {
+    const code = `pub const MAX_SIZE: usize = 1024;`
+    const defs = await getDefinitions(code, 'zig')
+    expect(defs).toMatchInlineSnapshot(`
+[
+  {
+    "endLine": 1,
+    "exported": true,
+    "line": 1,
+    "name": "MAX_SIZE",
+    "type": "const",
+  },
+]
+`)
+  })
+
+  test('private const not included', async () => {
+    const code = `const internal_value: i32 = 42;`
+    const defs = await getDefinitions(code, 'zig')
+    expect(defs).toMatchInlineSnapshot(`[]`)
+  })
+
+  test('pub var not included (only const)', async () => {
+    const code = `pub var mutable_value: i32 = 42;`
+    const defs = await getDefinitions(code, 'zig')
+    expect(defs).toMatchInlineSnapshot(`[]`)
+  })
+
+  test('struct declaration is class', async () => {
+    const code = `pub const Config = struct {
+    name: []const u8,
+    value: i32,
+    enabled: bool,
+};`
+    const defs = await getDefinitions(code, 'zig')
+    expect(defs).toMatchInlineSnapshot(`
+[
+  {
+    "endLine": 5,
+    "exported": true,
+    "line": 1,
+    "name": "Config",
+    "type": "class",
+  },
+]
+`)
+  })
+
+  test('enum declaration', async () => {
+    const code = `pub const Status = enum {
+    pending,
+    running,
+    completed,
+    failed,
+};`
+    const defs = await getDefinitions(code, 'zig')
+    expect(defs).toMatchInlineSnapshot(`
+[
+  {
+    "endLine": 6,
+    "exported": true,
+    "line": 1,
+    "name": "Status",
+    "type": "enum",
+  },
+]
+`)
+  })
+
+  test('union declaration is class', async () => {
+    const code = `pub const Result = union(enum) {
+    ok: i32,
+    err: []const u8,
+};`
+    const defs = await getDefinitions(code, 'zig')
+    expect(defs).toMatchInlineSnapshot(`
+[
+  {
+    "endLine": 4,
+    "exported": true,
+    "line": 1,
+    "name": "Result",
+    "type": "class",
+  },
+]
+`)
+  })
+
+  test('test declaration with string name', async () => {
+    const code = `test "add function" {
+    const result = add(2, 3);
+    const expected = 5;
+    const check = result == expected;
+    const msg = "test failed";
+    try std.testing.expect(check);
+}`
+    const defs = await getDefinitions(code, 'zig')
+    expect(defs).toMatchInlineSnapshot(`
+[
+  {
+    "endLine": 7,
+    "exported": false,
+    "line": 1,
+    "name": "add function",
+    "type": "function",
+  },
+]
+`)
+  })
+
+  test('small function excluded', async () => {
+    const code = `pub fn add(a: i32, b: i32) i32 {
+    return a + b;
+}`
+    const defs = await getDefinitions(code, 'zig')
+    expect(defs).toMatchInlineSnapshot(`[]`)
+  })
+})

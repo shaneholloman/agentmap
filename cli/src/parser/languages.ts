@@ -22,6 +22,14 @@ export const LANGUAGE_EXTENSIONS: Record<string, Language> = {
   '.pyi': 'python',
   '.rs': 'rust',
   '.go': 'go',
+  '.zig': 'zig',
+  '.c': 'cpp',
+  '.h': 'cpp',
+  '.cpp': 'cpp',
+  '.cc': 'cpp',
+  '.cxx': 'cpp',
+  '.hpp': 'cpp',
+  '.hxx': 'cpp',
 }
 
 /**
@@ -47,6 +55,8 @@ function getGrammarPath(language: Language): string {
       return require.resolve('tree-sitter-rust/tree-sitter-rust.wasm')
     case 'go':
       return require.resolve('tree-sitter-go/tree-sitter-go.wasm')
+    case 'zig':
+      return require.resolve('@tree-sitter-grammars/tree-sitter-zig/tree-sitter-zig.wasm')
   }
 }
 

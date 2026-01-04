@@ -16,6 +16,7 @@ const FUNCTION_TYPES: Record<Language, string[]> = {
   python: ['function_definition'],
   rust: ['function_item'],
   go: ['function_declaration', 'method_declaration'],
+  zig: ['function_declaration', 'test_declaration'],
 }
 
 /**
@@ -27,6 +28,7 @@ const CLASS_TYPES: Record<Language, string[]> = {
   python: ['class_definition'],
   rust: ['struct_item', 'impl_item', 'trait_item'],
   go: ['type_declaration'],
+  zig: [],  // Handled via variable_declaration with struct/union value
 }
 
 /**
@@ -38,6 +40,7 @@ const INTERFACE_TYPES: Record<Language, string[]> = {
   python: [],
   rust: ['trait_item'],
   go: [],
+  zig: [],
 }
 
 /**
@@ -49,6 +52,7 @@ const TYPE_TYPES: Record<Language, string[]> = {
   python: [],
   rust: ['type_item'],
   go: ['type_declaration'],
+  zig: [],
 }
 
 /**
@@ -60,6 +64,7 @@ const ENUM_TYPES: Record<Language, string[]> = {
   python: [],
   rust: ['enum_item'],
   go: [],
+  zig: [],  // Handled via variable_declaration with enum value
 }
 
 /**
@@ -71,6 +76,7 @@ const CONST_TYPES: Record<Language, string[]> = {
   python: [],  // Python constants handled separately
   rust: ['const_item', 'static_item'],
   go: ['const_declaration', 'var_declaration'],
+  zig: ['variable_declaration'],
 }
 
 /**
@@ -78,6 +84,48 @@ const CONST_TYPES: Record<Language, string[]> = {
  */
 function isExported(node: SyntaxNode): boolean {
   return node.type === 'export_statement'
+}
+
+/**
+ * Check if a Zig node has 'pub' modifier
+ */
+function isZigPub(node: SyntaxNode): boolean {
+  for (let i = 0; i < node.childCount; i++) {
+    const child = node.child(i)
+    if (child?.type === 'pub') return true
+    // Stop checking after first non-modifier token
+    if (child?.type === 'identifier' || child?.type === 'block') break
+  }
+  return false
+}
+
+/**
+ * Check if a Zig variable_declaration uses 'const' (not 'var')
+ */
+function isZigConst(node: SyntaxNode): boolean {
+  for (let i = 0; i < node.childCount; i++) {
+    const child = node.child(i)
+    if (child?.type === 'const') return true
+    if (child?.type === 'var') return false
+  }
+  return false
+}
+
+/**
+ * Check if a Zig variable_declaration contains a struct/enum/union declaration
+ * Returns the appropriate DefinitionType or null
+ */
+function getZigTypeDeclaration(node: SyntaxNode): DefinitionType | null {
+  for (let i = 0; i < node.childCount; i++) {
+    const child = node.child(i)
+    if (child?.type === 'struct_declaration' || child?.type === 'union_declaration') {
+      return 'class'
+    }
+    if (child?.type === 'enum_declaration') {
+      return 'enum'
+    }
+  }
+  return null
 }
 
 /**
@@ -95,8 +143,9 @@ export function extractDefinitions(
     const node = rootNode.child(i)
     if (!node) continue
 
-    const exported = isExported(node)
-    const actualNode = unwrapExport(node)
+    // For Zig, check for 'pub' modifier directly on the node
+    const exported = language === 'zig' ? isZigPub(node) : isExported(node)
+    const actualNode = language === 'zig' ? node : unwrapExport(node)
     
     // Try to extract definition
     const def = extractDefinition(actualNode, language, exported)
@@ -203,8 +252,28 @@ function extractDefinition(
     }
   }
 
-  // Constants/variables (only if exported for TS/JS)
+  // Constants/variables (only if exported for TS/JS, or pub const for Zig)
   if (constTypes.includes(node.type)) {
+    // For Zig, check for struct/enum/union declarations
+    if (language === 'zig') {
+      if (!exported || !isZigConst(node)) {
+        return null
+      }
+      // Check if this is a struct/enum/union declaration
+      const zigType = getZigTypeDeclaration(node)
+      if (zigType) {
+        const name = extractZigName(node)
+        if (name) {
+          return {
+            name,
+            line: node.startPosition.row + 1,
+            endLine: node.endPosition.row + 1,
+            type: zigType,
+            exported
+          }
+        }
+      }
+    }
     // For TS/JS, only include if exported
     if ((language === 'typescript' || language === 'javascript') && !exported) {
       // Check for arrow functions assigned to const (these are always included if large enough)
@@ -333,6 +402,8 @@ function extractName(node: SyntaxNode, language: Language): string | null {
       return extractRustName(node)
     case 'go':
       return extractGoName(node)
+    case 'zig':
+      return extractZigName(node)
   }
 
   return null
@@ -365,6 +436,11 @@ function extractConstName(node: SyntaxNode, language: Language): string | null {
         return nameNode?.text ?? null
       }
     }
+  }
+
+  if (language === 'zig') {
+    // In Zig, identifier comes after const/var keyword
+    return extractZigName(node)
   }
 
   return null
@@ -426,6 +502,36 @@ function extractGoName(node: SyntaxNode): string | null {
   for (let i = 0; i < node.childCount; i++) {
     const child = node.child(i)
     if (child?.type === 'identifier' || child?.type === 'field_identifier') {
+      return child.text
+    }
+  }
+  return null
+}
+
+function extractZigName(node: SyntaxNode): string | null {
+  // For test_declaration, try to get the test name string
+  if (node.type === 'test_declaration') {
+    for (let i = 0; i < node.childCount; i++) {
+      const child = node.child(i)
+      if (child?.type === 'string') {
+        // Remove quotes from test name
+        const text = child.text
+        if (text.startsWith('"') && text.endsWith('"')) {
+          return text.slice(1, -1)
+        }
+        return text
+      }
+      if (child?.type === 'identifier') {
+        return child.text
+      }
+    }
+    return null
+  }
+
+  // For other declarations, look for identifier
+  for (let i = 0; i < node.childCount; i++) {
+    const child = node.child(i)
+    if (child?.type === 'identifier') {
       return child.text
     }
   }

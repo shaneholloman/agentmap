@@ -11,6 +11,8 @@ export type Language =
   | 'python'
   | 'rust'
   | 'go'
+  | 'zig'
+  | 'cpp'
 
 /**
  * Symbol definitions mapping: name -> description string
