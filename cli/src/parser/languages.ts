@@ -3,34 +3,12 @@
 import Parser from 'web-tree-sitter'
 import type { Language } from '../types.js'
 import { createRequire } from 'module'
+import { LANGUAGE_EXTENSIONS, GRAMMAR_PATHS } from '../languages/index.js'
 
 const require = createRequire(import.meta.url)
 
-/**
- * File extension to language mapping
- */
-export const LANGUAGE_EXTENSIONS: Record<string, Language> = {
-  '.ts': 'typescript',
-  '.tsx': 'typescript',
-  '.mts': 'typescript',
-  '.cts': 'typescript',
-  '.js': 'javascript',
-  '.jsx': 'javascript',
-  '.mjs': 'javascript',
-  '.cjs': 'javascript',
-  '.py': 'python',
-  '.pyi': 'python',
-  '.rs': 'rust',
-  '.go': 'go',
-  '.zig': 'zig',
-  '.c': 'cpp',
-  '.h': 'cpp',
-  '.cpp': 'cpp',
-  '.cc': 'cpp',
-  '.cxx': 'cpp',
-  '.hpp': 'cpp',
-  '.hxx': 'cpp',
-}
+// Re-export for backwards compatibility
+export { LANGUAGE_EXTENSIONS }
 
 /**
  * Detect language from file path extension
@@ -44,22 +22,7 @@ export function detectLanguage(filepath: string): Language | null {
  * Get the WASM grammar path for a language
  */
 function getGrammarPath(language: Language): string {
-  switch (language) {
-    case 'typescript':
-      return require.resolve('tree-sitter-typescript/tree-sitter-tsx.wasm')
-    case 'javascript':
-      return require.resolve('tree-sitter-javascript/tree-sitter-javascript.wasm')
-    case 'python':
-      return require.resolve('tree-sitter-python/tree-sitter-python.wasm')
-    case 'rust':
-      return require.resolve('tree-sitter-rust/tree-sitter-rust.wasm')
-    case 'go':
-      return require.resolve('tree-sitter-go/tree-sitter-go.wasm')
-    case 'zig':
-      return require.resolve('@tree-sitter-grammars/tree-sitter-zig/tree-sitter-zig.wasm')
-    case 'cpp':
-      return require.resolve('tree-sitter-cpp/tree-sitter-cpp.wasm')
-  }
+  return require.resolve(GRAMMAR_PATHS[language])
 }
 
 /**
