@@ -111,460 +111,15 @@ const CONST_TYPES: Record<Language, string[]> = {
   cpp: ['declaration'],
 }
 
+// ============================================================================
+// Export detection helpers
+// ============================================================================
+
 /**
- * Check if a node is an exported statement
+ * Check if a TS/JS node is an export statement
  */
-function isExported(node: SyntaxNode): boolean {
+function isExportStatement(node: SyntaxNode): boolean {
   return node.type === 'export_statement'
-}
-
-/**
- * Check if a Zig node has 'pub' modifier
- */
-function isZigPub(node: SyntaxNode): boolean {
-  for (let i = 0; i < node.childCount; i++) {
-    const child = node.child(i)
-    if (child?.type === 'pub') return true
-    // Stop checking after first non-modifier token
-    if (child?.type === 'identifier' || child?.type === 'block') break
-  }
-  return false
-}
-
-/**
- * Check if a Zig variable_declaration uses 'const' (not 'var')
- */
-function isZigConst(node: SyntaxNode): boolean {
-  for (let i = 0; i < node.childCount; i++) {
-    const child = node.child(i)
-    if (child?.type === 'const') return true
-    if (child?.type === 'var') return false
-  }
-  return false
-}
-
-/**
- * Check if a Zig variable_declaration contains a struct/enum/union declaration
- * Returns the appropriate DefinitionType or null
- */
-function getZigTypeDeclaration(node: SyntaxNode): DefinitionType | null {
-  for (let i = 0; i < node.childCount; i++) {
-    const child = node.child(i)
-    if (child?.type === 'struct_declaration') {
-      return 'struct'
-    }
-    if (child?.type === 'union_declaration') {
-      return 'union'
-    }
-    if (child?.type === 'enum_declaration') {
-      return 'enum'
-    }
-  }
-  return null
-}
-
-/**
- * Check if a Zig function_declaration has 'extern' modifier
- * e.g., pub extern "c" fn printf(...)
- */
-function isZigExtern(node: SyntaxNode): boolean {
-  for (let i = 0; i < node.childCount; i++) {
-    const child = node.child(i)
-    if (child?.type === 'extern') return true
-    // Stop after we hit the function body or signature
-    if (child?.type === 'block' || child?.type === 'fn') break
-  }
-  return false
-}
-
-/**
- * Check if a Rust node has 'pub' visibility modifier
- * e.g., pub fn foo(), pub struct Bar, pub const X: i32
- */
-function isRustPub(node: SyntaxNode): boolean {
-  for (let i = 0; i < node.childCount; i++) {
-    const child = node.child(i)
-    if (child?.type === 'visibility_modifier') {
-      // Check if it contains 'pub' (could be pub, pub(crate), pub(super), etc.)
-      return child.text.startsWith('pub')
-    }
-    // Stop after we hit the actual declaration content
-    if (child?.type === 'identifier' || child?.type === 'type_identifier') break
-  }
-  return false
-}
-
-/**
- * Check if a Go identifier is exported (starts with uppercase letter)
- * In Go, any identifier starting with uppercase is public/exported
- */
-function isGoExported(name: string | null): boolean {
-  if (!name || name.length === 0) return false
-  const firstChar = name.charAt(0)
-  return firstChar >= 'A' && firstChar <= 'Z'
-}
-
-/**
- * Check if a C++ node is wrapped in extern "C" or has extern storage class
- * Returns true for:
- *   - extern "C" void foo();
- *   - extern int global_var;
- */
-function isCppExtern(node: SyntaxNode, originalNode: SyntaxNode): boolean {
-  // Check if wrapped in linkage_specification (extern "C" { ... })
-  if (originalNode.type === 'linkage_specification') {
-    return true
-  }
-  
-  // Check for extern storage class specifier on declarations
-  if (node.type === 'declaration' || node.type === 'function_definition') {
-    for (let i = 0; i < node.childCount; i++) {
-      const child = node.child(i)
-      if (child?.type === 'storage_class_specifier' && child.text === 'extern') {
-        return true
-      }
-    }
-  }
-  
-  return false
-}
-
-/**
- * Extract top-level definitions from a syntax tree
- */
-export function extractDefinitions(
-  rootNode: SyntaxNode,
-  language: Language
-): Definition[] {
-  const definitions: Definition[] = []
-  const seenNames = new Set<string>()
-
-  // Walk immediate children of root (top-level only)
-  for (let i = 0; i < rootNode.childCount; i++) {
-    const node = rootNode.child(i)
-    if (!node) continue
-
-    // Determine export status based on language
-    // - Zig/Rust: check for 'pub' modifier
-    // - Go: determined later based on identifier capitalization
-    // - TS/JS: check for export_statement wrapper
-    let exported: boolean | null = null  // null means "determine from name" (Go)
-    let actualNode: SyntaxNode = node
-    
-    if (language === 'zig') {
-      exported = isZigPub(node)
-      actualNode = node
-    } else if (language === 'rust') {
-      exported = isRustPub(node)
-      actualNode = node
-    } else if (language === 'go') {
-      exported = null  // will be determined from name capitalization
-      actualNode = node
-    } else {
-      exported = isExported(node)
-      actualNode = unwrapExport(node)
-    }
-    
-    // Check for extern modifier
-    let isExtern = false
-    if (language === 'zig') {
-      isExtern = isZigExtern(node)
-    } else if (language === 'cpp') {
-      // Handle linkage_specification (extern "C" { ... })
-      if (node.type === 'linkage_specification') {
-        isExtern = true
-        // Extract definitions from inside the linkage_specification
-        for (let j = 0; j < node.childCount; j++) {
-          const inner = node.child(j)
-          if (!inner) continue
-          // Skip the extern keyword and string literal
-          if (inner.type === 'extern' || inner.type === 'string_literal') continue
-          
-          const def = extractDefinition(inner, language, exported, true)
-          if (def && !seenNames.has(def.name)) {
-            definitions.push(def)
-            seenNames.add(def.name)
-          }
-        }
-        continue
-      }
-      isExtern = isCppExtern(actualNode, node)
-    }
-    
-    // Try to extract definition
-    const def = extractDefinition(actualNode, language, exported, isExtern)
-    if (def && !seenNames.has(def.name)) {
-      definitions.push(def)
-      seenNames.add(def.name)
-    }
-
-    // Handle multiple declarations in one statement (e.g., const a = 1, b = 2)
-    const extraDefs = extractMultipleDeclarations(actualNode, language, exported, isExtern)
-    for (const d of extraDefs) {
-      if (!seenNames.has(d.name)) {
-        definitions.push(d)
-        seenNames.add(d.name)
-      }
-    }
-  }
-
-  return definitions
-}
-
-/**
- * Extract a single definition from a node
- * @param exported - true/false for explicit export status, null means determine from name (Go)
- */
-function extractDefinition(
-  node: SyntaxNode,
-  language: Language,
-  exported: boolean | null,
-  isExtern: boolean = false
-): Definition | null {
-  const functionTypes = FUNCTION_TYPES[language]
-  const classTypes = CLASS_TYPES[language]
-  const interfaceTypes = INTERFACE_TYPES[language]
-  const typeTypes = TYPE_TYPES[language]
-  const enumTypes = ENUM_TYPES[language]
-  const constTypes = CONST_TYPES[language]
-  
-  // Helper to resolve export status (handles Go's name-based exports)
-  const resolveExported = (name: string | null): boolean => {
-    if (exported !== null) return exported
-    // For Go: uppercase first letter = exported
-    return isGoExported(name)
-  }
-
-  // Functions
-  if (functionTypes.includes(node.type)) {
-    const name = extractName(node, language)
-    if (name && getBodyLineCount(node) > MIN_BODY_LINES) {
-      return { 
-        name, 
-        line: node.startPosition.row + 1, 
-        endLine: node.endPosition.row + 1,
-        type: 'function', 
-        exported: resolveExported(name),
-        ...(isExtern ? { extern: true } : {})
-      }
-    }
-  }
-
-  // Classes
-  if (classTypes.includes(node.type)) {
-    const name = extractName(node, language)
-    if (name && getBodyLineCount(node) > MIN_BODY_LINES) {
-      return { 
-        name, 
-        line: node.startPosition.row + 1, 
-        endLine: node.endPosition.row + 1,
-        type: 'class', 
-        exported: resolveExported(name),
-        ...(isExtern ? { extern: true } : {})
-      }
-    }
-  }
-
-  // Structs
-  const structTypes = STRUCT_TYPES[language]
-  if (structTypes.includes(node.type)) {
-    const name = extractName(node, language)
-    if (name && getBodyLineCount(node) > MIN_BODY_LINES) {
-      return { 
-        name, 
-        line: node.startPosition.row + 1, 
-        endLine: node.endPosition.row + 1,
-        type: 'struct', 
-        exported: resolveExported(name),
-        ...(isExtern ? { extern: true } : {})
-      }
-    }
-  }
-
-  // Traits
-  const traitTypes = TRAIT_TYPES[language]
-  if (traitTypes.includes(node.type)) {
-    const name = extractName(node, language)
-    if (name && getBodyLineCount(node) > MIN_BODY_LINES) {
-      return { 
-        name, 
-        line: node.startPosition.row + 1, 
-        endLine: node.endPosition.row + 1,
-        type: 'trait', 
-        exported: resolveExported(name),
-        ...(isExtern ? { extern: true } : {})
-      }
-    }
-  }
-
-  // Interfaces
-  if (interfaceTypes.includes(node.type)) {
-    const name = extractName(node, language)
-    if (name) {
-      return { 
-        name, 
-        line: node.startPosition.row + 1, 
-        endLine: node.endPosition.row + 1,
-        type: 'interface', 
-        exported: resolveExported(name),
-        ...(isExtern ? { extern: true } : {})
-      }
-    }
-  }
-
-  // Type aliases
-  if (typeTypes.includes(node.type)) {
-    const name = extractName(node, language)
-    if (name) {
-      return { 
-        name, 
-        line: node.startPosition.row + 1, 
-        endLine: node.endPosition.row + 1,
-        type: 'type', 
-        exported: resolveExported(name),
-        ...(isExtern ? { extern: true } : {})
-      }
-    }
-  }
-
-  // Enums
-  if (enumTypes.includes(node.type)) {
-    const name = extractName(node, language)
-    if (name) {
-      return { 
-        name, 
-        line: node.startPosition.row + 1, 
-        endLine: node.endPosition.row + 1,
-        type: 'enum', 
-        exported: resolveExported(name),
-        ...(isExtern ? { extern: true } : {})
-      }
-    }
-  }
-
-  // Constants/variables (only if exported for TS/JS, or pub const for Zig)
-  if (constTypes.includes(node.type)) {
-    // For Zig, check for struct/enum/union declarations
-    if (language === 'zig') {
-      // exported is always boolean for Zig (set via isZigPub)
-      if (!exported || !isZigConst(node)) {
-        return null
-      }
-      // Check if this is a struct/enum/union declaration
-      const zigType = getZigTypeDeclaration(node)
-      if (zigType) {
-        const name = extractZigName(node)
-        if (name) {
-          return {
-            name,
-            line: node.startPosition.row + 1,
-            endLine: node.endPosition.row + 1,
-            type: zigType,
-            exported: true,  // already checked above
-            ...(isExtern ? { extern: true } : {})
-          }
-        }
-      }
-    }
-    // For TS/JS, only include if exported (exported is always boolean for TS/JS)
-    if ((language === 'typescript' || language === 'javascript') && !exported) {
-      // Check for arrow functions assigned to const (these are always included if large enough)
-      const arrowFn = extractArrowFunction(node)
-      if (arrowFn && arrowFn.bodyLines > MIN_BODY_LINES) {
-        return { 
-          name: arrowFn.name, 
-          line: arrowFn.line, 
-          endLine: arrowFn.endLine,
-          type: 'function', 
-          exported: false 
-        }
-      }
-      return null
-    }
-    
-    // Check for arrow functions first
-    const arrowFn = extractArrowFunction(node)
-    if (arrowFn && arrowFn.bodyLines > MIN_BODY_LINES) {
-      return { 
-        name: arrowFn.name, 
-        line: arrowFn.line, 
-        endLine: arrowFn.endLine,
-        type: 'function', 
-        exported: resolveExported(arrowFn.name)
-      }
-    }
-    
-    // Otherwise it's a constant
-    const name = extractConstName(node, language)
-    if (name) {
-      return { 
-        name, 
-        line: node.startPosition.row + 1, 
-        endLine: node.endPosition.row + 1,
-        type: 'const', 
-        exported: resolveExported(name),
-        ...(isExtern ? { extern: true } : {})
-      }
-    }
-  }
-
-  return null
-}
-
-/**
- * Extract multiple declarations from a single statement
- */
-function extractMultipleDeclarations(
-  node: SyntaxNode,
-  language: Language,
-  exported: boolean | null,
-  isExtern: boolean = false
-): Definition[] {
-  const defs: Definition[] = []
-  
-  // Helper to resolve export status (handles Go's name-based exports)
-  const resolveExported = (name: string | null): boolean => {
-    if (exported !== null) return exported
-    return isGoExported(name)
-  }
-
-  // Handle lexical_declaration with multiple variable_declarators
-  if (node.type === 'lexical_declaration') {
-    // For TS/JS, exported is always boolean
-    if ((language === 'typescript' || language === 'javascript') && !exported) {
-      return defs
-    }
-
-    let count = 0
-    for (let i = 0; i < node.childCount; i++) {
-      const child = node.child(i)
-      if (child?.type === 'variable_declarator') {
-        count++
-        if (count > 1) {
-          const nameNode = child.childForFieldName('name')
-          const valueNode = child.childForFieldName('value')
-          if (nameNode) {
-            const isArrowFn = valueNode?.type === 'arrow_function'
-            const type: DefinitionType = isArrowFn ? 'function' : 'const'
-            // Skip small arrow functions
-            if (isArrowFn && valueNode && getBodyLineCount(valueNode) <= MIN_BODY_LINES) {
-              continue
-            }
-            defs.push({
-              name: nameNode.text,
-              line: child.startPosition.row + 1,
-              endLine: child.endPosition.row + 1,
-              type,
-              exported: resolveExported(nameNode.text),
-              ...(isExtern ? { extern: true } : {})
-            })
-          }
-        }
-      }
-    }
-  }
-
-  return defs
 }
 
 /**
@@ -584,16 +139,413 @@ function unwrapExport(node: SyntaxNode): SyntaxNode {
 }
 
 /**
+ * Check if a Zig node has 'pub' modifier
+ */
+function isZigPub(node: SyntaxNode): boolean {
+  for (let i = 0; i < node.childCount; i++) {
+    const child = node.child(i)
+    if (child?.type === 'pub') return true
+    if (child?.type === 'identifier' || child?.type === 'block') break
+  }
+  return false
+}
+
+/**
+ * Check if a Zig variable_declaration uses 'const' (not 'var')
+ */
+function isZigConst(node: SyntaxNode): boolean {
+  for (let i = 0; i < node.childCount; i++) {
+    const child = node.child(i)
+    if (child?.type === 'const') return true
+    if (child?.type === 'var') return false
+  }
+  return false
+}
+
+/**
+ * Check if a Zig variable_declaration contains a struct/enum/union declaration
+ */
+function getZigTypeDeclaration(node: SyntaxNode): DefinitionType | null {
+  for (let i = 0; i < node.childCount; i++) {
+    const child = node.child(i)
+    if (child?.type === 'struct_declaration') return 'struct'
+    if (child?.type === 'union_declaration') return 'union'
+    if (child?.type === 'enum_declaration') return 'enum'
+  }
+  return null
+}
+
+/**
+ * Check if a Zig function has 'extern' modifier
+ */
+function isZigExtern(node: SyntaxNode): boolean {
+  for (let i = 0; i < node.childCount; i++) {
+    const child = node.child(i)
+    if (child?.type === 'extern') return true
+    if (child?.type === 'block' || child?.type === 'fn') break
+  }
+  return false
+}
+
+/**
+ * Check if a Rust node has 'pub' visibility modifier
+ */
+function isRustPub(node: SyntaxNode): boolean {
+  for (let i = 0; i < node.childCount; i++) {
+    const child = node.child(i)
+    if (child?.type === 'visibility_modifier') {
+      return child.text.startsWith('pub')
+    }
+    if (child?.type === 'identifier' || child?.type === 'type_identifier') break
+  }
+  return false
+}
+
+/**
+ * Check if a Go identifier is exported (starts with uppercase)
+ */
+function isGoExported(name: string | null): boolean {
+  if (!name || name.length === 0) return false
+  const firstChar = name.charAt(0)
+  return firstChar >= 'A' && firstChar <= 'Z'
+}
+
+/**
+ * Check if a C++ node has extern storage class or is in linkage_specification
+ */
+function isCppExtern(node: SyntaxNode): boolean {
+  if (node.type === 'declaration' || node.type === 'function_definition') {
+    for (let i = 0; i < node.childCount; i++) {
+      const child = node.child(i)
+      if (child?.type === 'storage_class_specifier' && child.text === 'extern') {
+        return true
+      }
+    }
+  }
+  return false
+}
+
+// ============================================================================
+// Main extraction logic
+// ============================================================================
+
+interface ExtractOptions {
+  node: SyntaxNode
+  language: Language
+}
+
+interface ExtractInternalOptions extends ExtractOptions {
+  /** Override: node is inside extern "C" block */
+  forceExtern?: boolean
+}
+
+/**
+ * Extract top-level definitions from a syntax tree
+ */
+export function extractDefinitions(
+  rootNode: SyntaxNode,
+  language: Language
+): Definition[] {
+  const definitions: Definition[] = []
+  const seenNames = new Set<string>()
+
+  for (let i = 0; i < rootNode.childCount; i++) {
+    const node = rootNode.child(i)
+    if (!node) continue
+
+    // Handle C++ linkage_specification (extern "C" { ... })
+    if (language === 'cpp' && node.type === 'linkage_specification') {
+      for (let j = 0; j < node.childCount; j++) {
+        const inner = node.child(j)
+        if (!inner) continue
+        if (inner.type === 'extern' || inner.type === 'string_literal') continue
+        
+        const defs = extractDefinition({ node: inner, language, forceExtern: true })
+        for (const def of defs) {
+          if (!seenNames.has(def.name)) {
+            definitions.push(def)
+            seenNames.add(def.name)
+          }
+        }
+      }
+      continue
+    }
+
+    const defs = extractDefinition({ node, language })
+    for (const def of defs) {
+      if (!seenNames.has(def.name)) {
+        definitions.push(def)
+        seenNames.add(def.name)
+      }
+    }
+  }
+
+  return definitions
+}
+
+/**
+ * Extract definition(s) from a single node.
+ * Handles export detection, unwrapping, and multiple declarations internally.
+ */
+function extractDefinition(opts: ExtractInternalOptions): Definition[] {
+  const { node, language, forceExtern = false } = opts
+  
+  // Determine exported status and get actual node to process
+  let exported: boolean
+  let actualNode: SyntaxNode
+  let isExtern = forceExtern
+  
+  switch (language) {
+    case 'typescript':
+    case 'javascript':
+      exported = isExportStatement(node)
+      actualNode = unwrapExport(node)
+      break
+    case 'zig':
+      exported = isZigPub(node)
+      actualNode = node
+      isExtern = isExtern || isZigExtern(node)
+      break
+    case 'rust':
+      exported = isRustPub(node)
+      actualNode = node
+      break
+    case 'go':
+      // Go: exported determined per-name (uppercase = exported)
+      // We'll handle this in createDefinition
+      exported = false  // placeholder, resolved per-name
+      actualNode = node
+      break
+    case 'cpp':
+      exported = false  // C++ doesn't have module exports in this sense
+      actualNode = node
+      isExtern = isExtern || isCppExtern(node)
+      break
+    case 'python':
+    default:
+      exported = false
+      actualNode = node
+      break
+  }
+
+  const results: Definition[] = []
+  
+  // Helper to resolve export status (Go uses name-based exports)
+  const resolveExported = (name: string): boolean => {
+    if (language === 'go') return isGoExported(name)
+    return exported
+  }
+  
+  // Helper to create a definition
+  const createDef = (
+    name: string,
+    type: DefinitionType,
+    startLine: number,
+    endLine: number
+  ): Definition => ({
+    name,
+    line: startLine,
+    endLine,
+    type,
+    exported: resolveExported(name),
+    ...(isExtern ? { extern: true } : {})
+  })
+
+  const functionTypes = FUNCTION_TYPES[language]
+  const classTypes = CLASS_TYPES[language]
+  const structTypes = STRUCT_TYPES[language]
+  const traitTypes = TRAIT_TYPES[language]
+  const interfaceTypes = INTERFACE_TYPES[language]
+  const typeTypes = TYPE_TYPES[language]
+  const enumTypes = ENUM_TYPES[language]
+  const constTypes = CONST_TYPES[language]
+
+  // Functions
+  if (functionTypes.includes(actualNode.type)) {
+    const name = extractName({ node: actualNode, language })
+    if (name && getBodyLineCount(actualNode) > MIN_BODY_LINES) {
+      results.push(createDef(name, 'function', actualNode.startPosition.row + 1, actualNode.endPosition.row + 1))
+    }
+    return results
+  }
+
+  // Classes
+  if (classTypes.includes(actualNode.type)) {
+    const name = extractName({ node: actualNode, language })
+    if (name && getBodyLineCount(actualNode) > MIN_BODY_LINES) {
+      results.push(createDef(name, 'class', actualNode.startPosition.row + 1, actualNode.endPosition.row + 1))
+    }
+    return results
+  }
+
+  // Structs
+  if (structTypes.includes(actualNode.type)) {
+    const name = extractName({ node: actualNode, language })
+    if (name && getBodyLineCount(actualNode) > MIN_BODY_LINES) {
+      results.push(createDef(name, 'struct', actualNode.startPosition.row + 1, actualNode.endPosition.row + 1))
+    }
+    return results
+  }
+
+  // Traits
+  if (traitTypes.includes(actualNode.type)) {
+    const name = extractName({ node: actualNode, language })
+    if (name && getBodyLineCount(actualNode) > MIN_BODY_LINES) {
+      results.push(createDef(name, 'trait', actualNode.startPosition.row + 1, actualNode.endPosition.row + 1))
+    }
+    return results
+  }
+
+  // Interfaces
+  if (interfaceTypes.includes(actualNode.type)) {
+    const name = extractName({ node: actualNode, language })
+    if (name) {
+      results.push(createDef(name, 'interface', actualNode.startPosition.row + 1, actualNode.endPosition.row + 1))
+    }
+    return results
+  }
+
+  // Type aliases
+  if (typeTypes.includes(actualNode.type)) {
+    const name = extractName({ node: actualNode, language })
+    if (name) {
+      results.push(createDef(name, 'type', actualNode.startPosition.row + 1, actualNode.endPosition.row + 1))
+    }
+    return results
+  }
+
+  // Enums
+  if (enumTypes.includes(actualNode.type)) {
+    const name = extractName({ node: actualNode, language })
+    if (name) {
+      results.push(createDef(name, 'enum', actualNode.startPosition.row + 1, actualNode.endPosition.row + 1))
+    }
+    return results
+  }
+
+  // Constants/variables
+  if (constTypes.includes(actualNode.type)) {
+    // Zig: pub const (may be struct/enum/union or plain const)
+    if (language === 'zig') {
+      if (!exported || !isZigConst(actualNode)) {
+        return results
+      }
+      const name = extractZigName(actualNode)
+      if (name) {
+        // Use specific type if struct/enum/union, otherwise const
+        const zigType = getZigTypeDeclaration(actualNode)
+        const type = zigType ?? 'const'
+        results.push(createDef(name, type, actualNode.startPosition.row + 1, actualNode.endPosition.row + 1))
+      }
+      return results
+    }
+
+    // TS/JS: handle arrow functions and multiple declarations
+    if (language === 'typescript' || language === 'javascript') {
+      // Non-exported: only include large arrow functions
+      if (!exported) {
+        const arrowFn = extractArrowFunction(actualNode)
+        if (arrowFn && arrowFn.bodyLines > MIN_BODY_LINES) {
+          results.push({
+            name: arrowFn.name,
+            line: arrowFn.line,
+            endLine: arrowFn.endLine,
+            type: 'function',
+            exported: false
+          })
+        }
+        return results
+      }
+      
+      // Exported: extract all declarations
+      return extractJSDeclarations({ node: actualNode, language, exported, isExtern })
+    }
+
+    // Other languages: simple const extraction
+    const name = extractConstName({ node: actualNode, language })
+    if (name) {
+      results.push(createDef(name, 'const', actualNode.startPosition.row + 1, actualNode.endPosition.row + 1))
+    }
+    return results
+  }
+
+  return results
+}
+
+/**
+ * Extract all declarations from a TS/JS lexical_declaration
+ * Handles: const a = 1, const b = () => {}, const c = 1, d = 2
+ */
+function extractJSDeclarations(opts: {
+  node: SyntaxNode
+  language: Language
+  exported: boolean
+  isExtern: boolean
+}): Definition[] {
+  const { node, exported, isExtern } = opts
+  const results: Definition[] = []
+
+  if (node.type !== 'lexical_declaration') {
+    // Single const extraction fallback
+    const name = extractConstName({ node, language: opts.language })
+    if (name) {
+      results.push({
+        name,
+        line: node.startPosition.row + 1,
+        endLine: node.endPosition.row + 1,
+        type: 'const',
+        exported,
+        ...(isExtern ? { extern: true } : {})
+      })
+    }
+    return results
+  }
+
+  for (let i = 0; i < node.childCount; i++) {
+    const child = node.child(i)
+    if (child?.type !== 'variable_declarator') continue
+
+    const nameNode = child.childForFieldName('name')
+    const valueNode = child.childForFieldName('value')
+    if (!nameNode) continue
+
+    const isArrowFn = valueNode?.type === 'arrow_function'
+    const type: DefinitionType = isArrowFn ? 'function' : 'const'
+
+    // Skip small arrow functions
+    if (isArrowFn && valueNode && getBodyLineCount(valueNode) <= MIN_BODY_LINES) {
+      continue
+    }
+
+    results.push({
+      name: nameNode.text,
+      line: child.startPosition.row + 1,
+      endLine: child.endPosition.row + 1,
+      type,
+      exported,
+      ...(isExtern ? { extern: true } : {})
+    })
+  }
+
+  return results
+}
+
+// ============================================================================
+// Name extraction helpers
+// ============================================================================
+
+/**
  * Extract the name from a definition node
  */
-function extractName(node: SyntaxNode, language: Language): string | null {
-  // Try to find 'name' field first
+function extractName(opts: ExtractOptions): string | null {
+  const { node, language } = opts
+  
+  // Try 'name' field first
   const nameNode = node.childForFieldName('name')
   if (nameNode) {
     return nameNode.text
   }
 
-  // Language-specific fallbacks
   switch (language) {
     case 'typescript':
     case 'javascript':
@@ -616,7 +568,9 @@ function extractName(node: SyntaxNode, language: Language): string | null {
 /**
  * Extract name from a const/let declaration
  */
-function extractConstName(node: SyntaxNode, language: Language): string | null {
+function extractConstName(opts: ExtractOptions): string | null {
+  const { node, language } = opts
+
   if (language === 'typescript' || language === 'javascript') {
     for (let i = 0; i < node.childCount; i++) {
       const child = node.child(i)
@@ -628,11 +582,10 @@ function extractConstName(node: SyntaxNode, language: Language): string | null {
   }
 
   if (language === 'rust') {
-    return extractName(node, language)
+    return extractName(opts)
   }
 
   if (language === 'go') {
-    // Look for const_spec or var_spec
     for (let i = 0; i < node.childCount; i++) {
       const child = node.child(i)
       if (child?.type === 'const_spec' || child?.type === 'var_spec') {
@@ -643,7 +596,6 @@ function extractConstName(node: SyntaxNode, language: Language): string | null {
   }
 
   if (language === 'zig') {
-    // In Zig, identifier comes after const/var keyword
     return extractZigName(node)
   }
 
@@ -717,12 +669,10 @@ function extractGoName(node: SyntaxNode): string | null {
 }
 
 function extractZigName(node: SyntaxNode): string | null {
-  // For test_declaration, try to get the test name string
   if (node.type === 'test_declaration') {
     for (let i = 0; i < node.childCount; i++) {
       const child = node.child(i)
       if (child?.type === 'string') {
-        // Remove quotes from test name
         const text = child.text
         if (text.startsWith('"') && text.endsWith('"')) {
           return text.slice(1, -1)
@@ -736,7 +686,6 @@ function extractZigName(node: SyntaxNode): string | null {
     return null
   }
 
-  // For other declarations, look for identifier
   for (let i = 0; i < node.childCount; i++) {
     const child = node.child(i)
     if (child?.type === 'identifier') {
@@ -747,11 +696,9 @@ function extractZigName(node: SyntaxNode): string | null {
 }
 
 function extractCppName(node: SyntaxNode): string | null {
-  // For function_definition, look for declarator -> identifier
   if (node.type === 'function_definition') {
     const declarator = node.childForFieldName('declarator')
     if (declarator) {
-      // Could be function_declarator or pointer_declarator wrapping it
       const funcDecl = declarator.type === 'function_declarator' 
         ? declarator 
         : findChild(declarator, 'function_declarator')
@@ -760,7 +707,6 @@ function extractCppName(node: SyntaxNode): string | null {
         if (innerDecl?.type === 'identifier') {
           return innerDecl.text
         }
-        // Could be qualified_identifier for namespaced functions
         if (innerDecl?.type === 'qualified_identifier') {
           const name = innerDecl.childForFieldName('name')
           return name?.text ?? null
@@ -769,13 +715,11 @@ function extractCppName(node: SyntaxNode): string | null {
     }
   }
 
-  // For struct_specifier, class_specifier, enum_specifier - look for name field or type_identifier
   if (node.type === 'struct_specifier' || node.type === 'class_specifier' || node.type === 'enum_specifier') {
     const nameNode = node.childForFieldName('name')
     if (nameNode) {
       return nameNode.text
     }
-    // Fallback: look for type_identifier child
     for (let i = 0; i < node.childCount; i++) {
       const child = node.child(i)
       if (child?.type === 'type_identifier') {
@@ -784,7 +728,6 @@ function extractCppName(node: SyntaxNode): string | null {
     }
   }
 
-  // For type_definition (typedef), look for the declarator
   if (node.type === 'type_definition') {
     const declarator = node.childForFieldName('declarator')
     if (declarator?.type === 'type_identifier') {
@@ -792,20 +735,17 @@ function extractCppName(node: SyntaxNode): string | null {
     }
   }
 
-  // For alias_declaration (C++ using), look for name
   if (node.type === 'alias_declaration') {
     const nameNode = node.childForFieldName('name')
     return nameNode?.text ?? null
   }
 
-  // For declaration (const/static vars), look for declarator
   if (node.type === 'declaration') {
     const declarator = node.childForFieldName('declarator')
     if (declarator) {
       if (declarator.type === 'identifier') {
         return declarator.text
       }
-      // Could be init_declarator
       if (declarator.type === 'init_declarator') {
         const innerDecl = declarator.childForFieldName('declarator')
         if (innerDecl?.type === 'identifier') {
@@ -815,7 +755,6 @@ function extractCppName(node: SyntaxNode): string | null {
     }
   }
 
-  // Generic fallback: look for identifier or type_identifier
   for (let i = 0; i < node.childCount; i++) {
     const child = node.child(i)
     if (child?.type === 'identifier' || child?.type === 'type_identifier') {
@@ -824,6 +763,10 @@ function extractCppName(node: SyntaxNode): string | null {
   }
   return null
 }
+
+// ============================================================================
+// Utility functions
+// ============================================================================
 
 /**
  * Extract arrow function assigned to const/let
