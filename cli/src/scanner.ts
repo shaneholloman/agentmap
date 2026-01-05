@@ -1,7 +1,6 @@
 // Scan directory for files with header comments/docstrings.
 
 import { execSync } from 'child_process'
-import fg from 'fast-glob'
 import picomatch from 'picomatch'
 import { readFile } from 'fs/promises'
 import { join, normalize } from 'path'
@@ -10,6 +9,12 @@ import { extractDefinitions } from './extract/definitions.js'
 import { getAllDiffData, applyDiffToDefinitions } from './extract/git-status.js'
 import { parseCode, detectLanguage, LANGUAGE_EXTENSIONS } from './parser/index.js'
 import type { FileResult, GenerateOptions, FileDiff, FileDiffStats } from './types.js'
+
+/**
+ * Maximum number of files to process (safety limit)
+ * If exceeded, returns empty results to avoid scanning huge directories
+ */
+const MAX_FILES = 5_000_000
 
 /**
  * Supported file extensions (from LANGUAGE_EXTENSIONS)
@@ -33,62 +38,30 @@ function isReadmeFile(filepath: string): boolean {
 }
 
 /**
- * Check if running inside a git repository
- */
-function isGitRepo(dir: string): boolean {
-  try {
-    execSync('git rev-parse --git-dir', { cwd: dir, stdio: 'ignore' })
-    return true
-  } catch {
-    return false
-  }
-}
-
-/**
- * Get files using git ls-files
- * Uses --cached --others to get tracked + untracked files
- * Uses --exclude-standard to respect .gitignore
+ * Get tracked files using git ls-files
+ * Only returns files that are tracked by git (committed or staged)
  */
 function getGitFiles(dir: string): string[] {
   const maxBuffer = 1024 * 10000000
   try {
-    // Get tracked and untracked files (respecting .gitignore)
-    const stdout = execSync('git ls-files --cached --others --exclude-standard', {
+    // Get only tracked files
+    const stdout = execSync('git ls-files', {
       cwd: dir,
       maxBuffer,
       encoding: 'utf8',
     })
     
-    // Get deleted files to exclude
-    const deleted = execSync('git ls-files --deleted', {
-      cwd: dir,
-      maxBuffer,
-      encoding: 'utf8',
-    })
-    
-    const paths = stdout.split(/\r?\n/).map(x => x.trim()).filter(Boolean)
-    const deletedPaths = new Set(deleted.split(/\r?\n/).map(x => x.trim()).filter(Boolean))
-    
-    return paths
-      .filter(p => !deletedPaths.has(p))
+    return stdout
+      .split(/\r?\n/)
+      .map(x => x.trim())
+      .filter(Boolean)
       .map(normalize)
   } catch {
     return []
   }
 }
 
-/**
- * Get files using fast-glob (fallback when not in git repo)
- */
-async function getGlobFiles(dir: string): Promise<string[]> {
-  const patterns = Object.keys(LANGUAGE_EXTENSIONS).map(ext => `**/*${ext}`)
-  return fg(patterns, {
-    cwd: dir,
-    ignore: ['**/node_modules/**', '**/dist/**', '**/build/**', '**/.git/**'],
-    absolute: false,
-    dot: false,
-  })
-}
+
 
 /**
  * Scan directory and process files with header comments
@@ -99,13 +72,8 @@ export async function scanDirectory(options: GenerateOptions = {}): Promise<File
   const ignorePatterns = (options.ignore ?? []).filter((p): p is string => !!p)
   const includeDiff = options.diff ?? false
 
-  // Get file list - prefer git, fallback to glob
-  let files: string[]
-  if (isGitRepo(dir)) {
-    files = getGitFiles(dir)
-  } else {
-    files = await getGlobFiles(dir)
-  }
+  // Get file list from git (caller should ensure we're in a git repo)
+  let files = getGitFiles(dir)
 
   // Filter by supported extensions or README files
   files = files.filter(f => isSupportedFile(f) || isReadmeFile(f))
@@ -116,11 +84,17 @@ export async function scanDirectory(options: GenerateOptions = {}): Promise<File
     files = files.filter(f => !isIgnored(f))
   }
 
+  // Safety check: bail if too many files to avoid scanning huge directories
+  if (files.length > MAX_FILES) {
+    console.error(`Warning: Too many files (${files.length} > ${MAX_FILES}), skipping scan`)
+    return []
+  }
+
   // Get git diff data if needed (isolated from main processing)
   let fileStats: Map<string, FileDiffStats> | null = null
   let fileDiffs: Map<string, FileDiff> | null = null
   
-  if (includeDiff && isGitRepo(dir)) {
+  if (includeDiff) {
     try {
       const diffData = getAllDiffData(dir)
       fileStats = diffData.fileStats

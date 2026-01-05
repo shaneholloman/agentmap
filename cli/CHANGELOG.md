@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.6.0
+
+- Add Zig language support with struct, union, enum, and extern detection
+- Add export detection for Rust (`pub`) and Go (uppercase names)
+- Add `extern` field for FFI declarations (C/C++, Zig)
+- Use correct definition types: `struct`, `union`, `trait` instead of generic `class`
+- Skip license headers (Copyright, SPDX, etc.) when extracting file descriptions
+- Include shebang lines in file descriptions
+- Refactor language-specific code into `languages/` directory
+- Remove `fast-glob` dependency - only use `git ls-files` for tracked files
+- Add safety checks: skip if not in git repo or if running from home directory
+- Export `isGitRepo` and `isHomeDirectory` utilities
+
 ## 0.5.0
 
 - Add README.md support: include README files in the map with their content as description
