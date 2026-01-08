@@ -12,7 +12,7 @@ function isReadme(key: string): boolean {
 }
 
 /**
- * Custom key sorter: description first, then diff, then defs, then README files, then alphabetical
+ * Custom key sorter: description first, then diff, then defs/exports, then README files, then alphabetical
  */
 function sortKeys(a: string, b: string): number {
   // description always first
@@ -21,9 +21,9 @@ function sortKeys(a: string, b: string): number {
   // diff second
   if (a === 'diff') return -1
   if (b === 'diff') return 1
-  // defs third
-  if (a === 'defs') return -1
-  if (b === 'defs') return 1
+  // defs/exports third
+  if (a === 'defs' || a === 'exports') return -1
+  if (b === 'defs' || b === 'exports') return 1
   // README files come before other files
   const aIsReadme = isReadme(a)
   const bIsReadme = isReadme(b)
@@ -34,10 +34,21 @@ function sortKeys(a: string, b: string): number {
 }
 
 /**
+ * Convert __more_N__ markers to YAML comments
+ */
+function markersToComments(yamlStr: string): string {
+  return yamlStr.replace(
+    /^(\s*)__more_(\d+)__: (\d+ more (?:definitions|exports))$/gm,
+    '$1# ... $3'
+  )
+}
+
+/**
  * Convert map object to YAML string
+ * Automatically converts truncation markers to comments
  */
 export function toYaml(map: MapNode): string {
-  return yaml.dump(map, {
+  const yamlStr = yaml.dump(map, {
     indent: 2,
     lineWidth: -1,  // Don't wrap lines
     noRefs: true,   // Don't use YAML references
@@ -45,4 +56,5 @@ export function toYaml(map: MapNode): string {
     quotingType: '"',
     forceQuotes: false,
   })
+  return markersToComments(yamlStr)
 }
