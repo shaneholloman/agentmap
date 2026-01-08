@@ -119,6 +119,8 @@ export interface GenerateOptions {
   diff?: boolean
   /** Git ref to diff against (default: HEAD for unstaged, --cached for staged) */
   diffBase?: string
+  /** Max definitions per file before truncation (default: 25) */
+  maxDefs?: number
 }
 
 /**

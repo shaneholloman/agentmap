@@ -3,94 +3,8 @@
 
 import type { Plugin } from '@opencode-ai/plugin'
 import { generateMap, toYaml } from 'agentmap'
-import type { MapNode, FileEntry, DefEntry } from 'agentmap'
 
-const MAX_DEFS_PER_FILE = 25
 const MAX_LINES = 1000
-
-/**
- * Check if a def value indicates exported or extern
- */
-function isExportedDef(value: string): boolean {
-  return value.includes('exported') || value.includes('extern')
-}
-
-/**
- * Truncate definitions in a file entry to MAX_DEFS_PER_FILE
- * If file has exported symbols, shows only exports field instead
- * Otherwise uses current truncation behavior
- */
-function truncateDefs(entry: FileEntry): FileEntry {
-  if (!entry.defs) return entry
-
-  const defNames = Object.keys(entry.defs)
-  if (defNames.length <= MAX_DEFS_PER_FILE) return entry
-
-  // Filter to only exported/extern definitions
-  const exportedNames = defNames.filter(name => isExportedDef(entry.defs![name]))
-
-  // If we have exports, use exports field instead of defs
-  if (exportedNames.length > 0) {
-    const exports: DefEntry = {}
-    const maxExports = Math.min(exportedNames.length, MAX_DEFS_PER_FILE)
-    
-    for (let i = 0; i < maxExports; i++) {
-      const name = exportedNames[i]
-      exports[name] = entry.defs[name]
-    }
-
-    // Add marker if exports were also truncated
-    if (exportedNames.length > MAX_DEFS_PER_FILE) {
-      const remaining = exportedNames.length - MAX_DEFS_PER_FILE
-      exports[`__more_${remaining}__`] = `${remaining} more exports`
-    }
-
-    // Return with exports instead of defs
-    const { defs, ...rest } = entry
-    return { ...rest, exports }
-  }
-
-  // No exports found - use current truncation behavior
-  const truncated: DefEntry = {}
-  for (let i = 0; i < MAX_DEFS_PER_FILE; i++) {
-    const name = defNames[i]
-    truncated[name] = entry.defs[name]
-  }
-
-  const remaining = defNames.length - MAX_DEFS_PER_FILE
-  // Add marker that will be converted to comment
-  truncated[`__more_${remaining}__`] = `${remaining} more definitions`
-
-  return { ...entry, defs: truncated }
-}
-
-/**
- * Check if a value is a FileEntry (has description or defs)
- */
-function isFileEntry(value: unknown): value is FileEntry {
-  if (!value || typeof value !== 'object') return false
-  const obj = value as Record<string, unknown>
-  return 'description' in obj || 'defs' in obj
-}
-
-/**
- * Recursively truncate defs in all files in the map
- */
-function truncateMap(node: MapNode): MapNode {
-  const result: MapNode = {}
-
-  for (const [key, value] of Object.entries(node)) {
-    if (isFileEntry(value)) {
-      result[key] = truncateDefs(value)
-    } else if (value && typeof value === 'object') {
-      result[key] = truncateMap(value as MapNode)
-    } else {
-      result[key] = value
-    }
-  }
-
-  return result
-}
 
 /**
  * Convert __more_N__ markers to YAML comments
@@ -134,6 +48,7 @@ export const AgentMapPlugin: Plugin = async ({ directory }) => {
         if (output.system.some((s) => s.includes('<agentmap>'))) return
 
         if (!cachedYaml) {
+          // Library applies truncation by default (maxDefs: 25)
           const map = await generateMap({ dir: directory, diff: true })
 
           // Check if map is empty
@@ -142,8 +57,7 @@ export const AgentMapPlugin: Plugin = async ({ directory }) => {
           if (!rootValue || Object.keys(rootValue).length === 0) {
             cachedYaml = ''
           } else {
-            const truncatedMap = truncateMap(map)
-            let yaml = toYaml(truncatedMap)
+            let yaml = toYaml(map)
             yaml = markersToComments(yaml)
             yaml = truncateLines(yaml)
             cachedYaml = yaml

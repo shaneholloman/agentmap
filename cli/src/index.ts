@@ -6,9 +6,11 @@ import { resolve } from 'path'
 import { scanDirectory } from './scanner.js'
 import { buildMap, getRootName } from './map/builder.js'
 import { toYaml } from './map/yaml.js'
+import { truncateMap } from './map/truncate.js'
 import type { GenerateOptions, MapNode } from './types.js'
 
 export { toYaml } from './map/yaml.js'
+export { truncateMap, truncateDefs } from './map/truncate.js'
 
 export type {
   DefEntry,
@@ -47,6 +49,8 @@ export function isHomeDirectory(dir: string): boolean {
   return resolved === home
 }
 
+const DEFAULT_MAX_DEFS = 25
+
 /**
  * Generate a map object from a directory
  * Returns empty map if not in a git repo or if directory is home
@@ -61,7 +65,11 @@ export async function generateMap(options: GenerateOptions = {}): Promise<MapNod
   }
 
   const results = await scanDirectory({ ...options, dir })
-  return buildMap(results, rootName)
+  const map = buildMap(results, rootName)
+  
+  // Apply truncation (default 25)
+  const maxDefs = options.maxDefs ?? DEFAULT_MAX_DEFS
+  return truncateMap(map, maxDefs)
 }
 
 /**
@@ -84,5 +92,9 @@ export async function generateMapYaml(options: GenerateOptions = {}): Promise<st
 
   const rootName = getRootName(dir)
   const map = buildMap(results, rootName)
-  return toYaml(map)
+  
+  // Apply truncation (default 25)
+  const maxDefs = options.maxDefs ?? DEFAULT_MAX_DEFS
+  const truncated = truncateMap(map, maxDefs)
+  return toYaml(truncated)
 }
