@@ -2,8 +2,8 @@
 // Detects standard comment styles from existing projects.
 // Automatically skips license headers (Copyright, SPDX, etc.).
 
-import { open } from 'fs/promises'
 import { parseCode, detectLanguage } from '../parser/index.js'
+import { readFirstLines } from './utils.js'
 import type { MarkerResult, Language, SyntaxNode } from '../types.js'
 
 export { extractMarkdownDescription } from './markdown.js'
@@ -53,30 +53,6 @@ function truncateDescription(lines: string[]): string {
 }
 
 /**
- * Read the first N lines of a file
- * Returns null if file cannot be read (ENOENT, permission denied, etc.)
- */
-async function readFirstLines(filepath: string, maxLines: number): Promise<string | null> {
-  let handle
-  try {
-    handle = await open(filepath, 'r')
-  } catch {
-    // File doesn't exist or can't be opened - skip silently
-    return null
-  }
-  try {
-    // Read enough bytes for ~50 lines (generous estimate)
-    const buffer = Buffer.alloc(maxLines * 200)
-    const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0)
-    const content = buffer.toString('utf8', 0, bytesRead)
-    const lines = content.split('\n').slice(0, maxLines)
-    return lines.join('\n')
-  } finally {
-    await handle.close()
-  }
-}
-
-/**
  * Extract header comment/docstring from a file.
  * Uses tree-sitter for clean AST-based extraction.
  * 
@@ -98,6 +74,19 @@ export async function extractMarker(filepath: string): Promise<MarkerResult> {
     // File couldn't be read - skip silently
     return { found: false }
   }
+  
+  return extractMarkerFromCode(head, language)
+}
+
+/**
+ * Extract header comment/docstring from code string.
+ * Use this when you already have the file content to avoid re-reading.
+ */
+export async function extractMarkerFromCode(code: string, language: Language): Promise<MarkerResult> {
+  // Only parse first MAX_LINES worth of content for efficiency
+  const lines = code.split('\n').slice(0, MAX_LINES)
+  const head = lines.join('\n')
+  
   const tree = await parseCode(head, language)
   const description = extractHeaderFromAST(tree.rootNode, language)
 
@@ -263,10 +252,23 @@ function extractConsecutiveComments(
 }
 
 /**
+ * Check if comment is a TypeScript triple-slash reference directive
+ * These are compiler directives, not actual comments
+ */
+function isReferenceDirective(text: string): boolean {
+  return /^\/\/\/\s*<reference\s/.test(text)
+}
+
+/**
  * Extract text content from a comment node
  */
 function extractCommentText(node: SyntaxNode, language: Language): string | null {
   const text = node.text
+
+  // Skip TypeScript triple-slash reference directives
+  if (isReferenceDirective(text)) {
+    return null
+  }
 
   // Rust: line_comment may have doc_comment child with actual content
   if (language === 'rust' && node.type === 'line_comment') {

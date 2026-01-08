@@ -1,10 +1,11 @@
 // Scan directory for files with header comments/docstrings.
 
 import { execSync } from 'child_process'
+import pLimit from 'p-limit'
 import picomatch from 'picomatch'
 import { readFile } from 'fs/promises'
 import { join, normalize } from 'path'
-import { extractMarker, extractMarkdownDescription } from './extract/marker.js'
+import { extractMarkerFromCode, extractMarkdownDescription } from './extract/marker.js'
 import { extractDefinitions } from './extract/definitions.js'
 import { getAllDiffData, applyDiffToDefinitions } from './extract/git-status.js'
 import { parseCode, detectLanguage, LANGUAGE_EXTENSIONS } from './parser/index.js'
@@ -113,28 +114,29 @@ export async function scanDirectory(options: GenerateOptions = {}): Promise<File
     }
   }
 
-  // Process each file
-  const results: FileResult[] = []
-
-  for (const relativePath of files) {
+  // Process files in parallel with concurrency limit
+  const limit = pLimit(20)
+  
+  const resultPromises = files.map(relativePath => {
     const fullPath = join(dir, relativePath)
     // Normalize path for lookup (handle Windows backslashes)
     const normalizedPath = relativePath.replace(/\\/g, '/')
-
-    try {
-      const fileDiff = fileDiffs?.get(normalizedPath)
-      const stats = fileStats?.get(normalizedPath)
-      const result = await processFile(fullPath, relativePath, fileDiff, stats)
-      if (result) {
-        results.push(result)
+    const fileDiff = fileDiffs?.get(normalizedPath)
+    const stats = fileStats?.get(normalizedPath)
+    
+    return limit(async () => {
+      try {
+        return await processFile(fullPath, relativePath, fileDiff, stats)
+      } catch (err) {
+        // Skip files that fail to process
+        console.error(`Warning: Failed to process ${relativePath}:`, err)
+        return null
       }
-    } catch (err) {
-      // Skip files that fail to process
-      console.error(`Warning: Failed to process ${relativePath}:`, err)
-    }
-  }
+    })
+  })
 
-  return results
+  const results = await Promise.all(resultPromises)
+  return results.filter((r): r is FileResult => r !== null)
 }
 
 /**
@@ -160,22 +162,22 @@ async function processFile(
     }
   }
 
-  // Check for marker first (only reads first 30KB)
-  const marker = await extractMarker(fullPath)
-  if (!marker.found) {
-    return null
-  }
-
-  // Detect language
+  // Detect language first
   const language = detectLanguage(relativePath)
   if (!language) {
     return null
   }
 
-  // Read full file for parsing
+  // Read file once for both marker extraction and definition parsing
   const code = await readFile(fullPath, 'utf8')
 
-  // Parse and extract definitions
+  // Check for marker using the code we already read
+  const marker = await extractMarkerFromCode(code, language)
+  if (!marker.found) {
+    return null
+  }
+
+  // Parse and extract definitions using the same code
   const tree = await parseCode(code, language)
   let definitions = extractDefinitions(tree.rootNode, language)
 

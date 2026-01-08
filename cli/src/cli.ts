@@ -4,7 +4,7 @@
 import { writeFile } from 'fs/promises'
 import { resolve } from 'path'
 import { cac } from 'cac'
-import { generateMap, generateMapYaml } from './index.js'
+import { generateMap, toYaml } from './index.js'
 
 const cli = cac('agentmap')
 
@@ -44,12 +44,7 @@ cli
         process.exit(0)
       }
 
-      const yaml = await generateMapYaml({
-        dir: targetDir,
-        ignore: options.ignore,
-        filter: options.filter,
-        diff: true,
-      })
+      const yaml = toYaml(map)
 
       if (options.output) {
         await writeFile(options.output, yaml, 'utf8')

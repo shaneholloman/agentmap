@@ -1,33 +1,10 @@
 // Extract description from markdown files using marked AST.
 
-import { open } from 'fs/promises'
 import { Lexer, type Token, type Tokens } from 'marked'
+import { readFirstLines } from './utils.js'
 
 const MAX_LINES = 50
 const MAX_DESC_LINES = 25
-
-/**
- * Read the first N lines of a file
- * Returns null if file cannot be read (ENOENT, permission denied, etc.)
- */
-async function readFirstLines(filepath: string, maxLines: number): Promise<string | null> {
-  let handle
-  try {
-    handle = await open(filepath, 'r')
-  } catch {
-    // File doesn't exist or can't be opened - skip silently
-    return null
-  }
-  try {
-    const buffer = Buffer.alloc(maxLines * 200)
-    const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0)
-    const content = buffer.toString('utf8', 0, bytesRead)
-    const lines = content.split('\n').slice(0, maxLines)
-    return lines.join('\n')
-  } finally {
-    await handle.close()
-  }
-}
 
 /**
  * Truncate lines to MAX_DESC_LINES, adding indicator if truncated
