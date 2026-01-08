@@ -32,12 +32,6 @@ The map contains:
 - **Descriptions** - extracted from header comments/docstrings in each file
 - **Definitions** - top-level functions, classes, interfaces, types with line numbers and export status
 
-**Installation**
-
-```bash
-npm install agentmap
-```
-
 **Setup with AGENTS.md (Any Agent)**
 
 Add instructions to your agent's instruction file (`AGENTS.md`, `CLAUDE.md`, `.cursorrules`, etc.):
