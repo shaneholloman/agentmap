@@ -1,4 +1,4 @@
-// @agentmap
+
 // OpenCode plugin that injects codebase map into system prompt.
 
 import type { Plugin } from '@opencode-ai/plugin'
