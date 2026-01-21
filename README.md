@@ -74,7 +74,7 @@ The `agentmap prompt` command generates instructions for an AI agent to add head
 Why add descriptions? Without them, agents must read files to understand what they do. With descriptions in the map, agents can navigate your codebase structure instantly and jump directly to relevant code.
 
 ```bash
-opencode -p "$(npx -y agentmap prompt)"
+opencode run "$(npx -y agentmap prompt)"
 ```
 
 This generates a prompt that instructs the agent to:
