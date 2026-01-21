@@ -98,9 +98,17 @@ After adding comments to all important files, run \`npx -y agentmap\` to verify 
 
 You can run this prompt again anytime to keep file descriptions up to date as the codebase evolves.
 
-Finally, set up the agentmap plugin so future sessions automatically get the codebase map.
+Finally, add these instructions to the project's AGENTS.md or CLAUDE.md file (create it if it doesn't exist):
 
-For OpenCode:
+\`\`\`markdown
+## Codebase Map
+
+Run \`npx -y agentmap\` to see the repo structure with file descriptions, definitions, and git diff status.
+
+When editing files with top-level description comments, keep them accurate and up-to-date with your changes.
+\`\`\`
+
+For OpenCode users, also set up the agentmap plugin so future sessions automatically get the codebase map:
 1. Add "@agentmap/opencode" to the plugin array in ~/.config/opencode/config.json
    - Create the file if it doesn't exist
    - If a plugin array already exists, append to it
@@ -114,6 +122,6 @@ cli
   })
 
 cli.help()
-cli.version('0.4.0')
+cli.version('0.7.1')
 
 cli.parse()

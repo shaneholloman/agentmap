@@ -35,22 +35,6 @@ The map contains:
 - **Descriptions** - extracted from header comments/docstrings in each file
 - **Definitions** - top-level functions, classes, interfaces, types with line numbers and export status
 
-**Setup with AGENTS.md (Any Agent)**
-
-Add instructions to your agent's instruction file (`AGENTS.md`, `CLAUDE.md`, `.cursorrules`, etc.):
-
-```markdown
-## Codebase Structure
-
-At the start of each session, run `npx -y agentmap@latest` to see a structured overview of the codebase at this point in time, with file descriptions and definition locations.
-
-When creating new files, add a brief description comment at the top explaining the file's purpose. This makes the file discoverable in the agentmap.
-
-When making significant changes to a file's purpose or responsibilities, update its header comment to reflect the changes.
-
-You can run agentmap again anytime to see the current state of the codebase as it evolves during the session.
-```
-
 This gives the agent a workflow for checking codebase structure at session start and keeping file descriptions up to date.
 
 **OpenCode Plugin**

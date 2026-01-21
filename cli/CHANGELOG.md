@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.1
+
+- Update `prompt` command to include AGENTS.md/CLAUDE.md snippet for keeping file comments updated
+
 ## 0.7.0
 
 - Add `--filter` flag to filter files by glob patterns (can be repeated)
